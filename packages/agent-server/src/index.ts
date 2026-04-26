@@ -3,7 +3,9 @@ import { dbPackage } from "@weki/db";
 import { markdownLspPackage } from "@weki/markdown-lsp";
 export * from "./daemon.js";
 export * from "./approval-store.js";
+export * from "./ask-agent.js";
 export * from "./draft-agent.js";
+export * from "./improve-agent.js";
 export * from "./run-store.js";
 export * from "./tool-allowlist.js";
 

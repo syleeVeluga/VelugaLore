@@ -1,6 +1,8 @@
 import {
   agentRunEventSchema,
   agentRunInvocationSchema,
+  improvePatchSchema,
+  improveReplaceRangeOpSchema,
   parseDraftPatchOps,
   patchStatusSchema,
   renderPatchPreview,
@@ -19,7 +21,9 @@ import {
   type PatchApprovalStore,
   type StoredPatchApproval
 } from "./approval-store.js";
+import { runAskAgent } from "./ask-agent.js";
 import { runDraftAgent } from "./draft-agent.js";
+import { runImproveAgent } from "./improve-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
 
@@ -111,6 +115,26 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     try {
       if (parsedInvocation.agentId === "draft") {
         const patch = withPreviewHtml(runDraftAgent(parsedInvocation), parsedInvocation);
+        const run = await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch
+        });
+        await approvalStore.propose({ run, patch });
+        return run;
+      }
+
+      if (parsedInvocation.agentId === "improve") {
+        const patch = withPreviewHtml(runImproveAgent(parsedInvocation), parsedInvocation);
+        const run = await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch
+        });
+        await approvalStore.propose({ run, patch });
+        return run;
+      }
+
+      if (parsedInvocation.agentId === "ask") {
+        const patch = runAskAgent(parsedInvocation);
         const run = await store.create(parsedInvocation, {
           status: "succeeded",
           patch
@@ -256,6 +280,13 @@ function withPreviewHtml<T extends Extract<AgentOutput, { kind: "Patch" }>>(
   }
 
   try {
+    if ("agentId" in patch && patch.agentId === "improve") {
+      return {
+        ...patch,
+        previewHtml: renderImprovePreviewHtml(improvePatchSchema.parse(patch).ops, body)
+      };
+    }
+
     const ops = parseDraftPatchOps(patch.ops);
     return {
       ...patch,
@@ -271,4 +302,31 @@ function withPreviewHtml<T extends Extract<AgentOutput, { kind: "Patch" }>>(
     );
     return patch;
   }
+}
+
+function renderImprovePreviewHtml(
+  ops: Extract<AgentOutput, { kind: "Patch" }>["ops"],
+  body: string
+): string {
+  const sections = ops
+    .map((rawOp, index) => {
+      const op = improveReplaceRangeOpSchema.parse(rawOp);
+      const before = body.slice(op.from, op.to);
+      return `<section data-op-index="${index}" data-op-kind="replace_range" data-alternative-id="${escapeHtml(op.alternativeId)}">` +
+        `<h3>${escapeHtml(op.label)}</h3>` +
+        `<div class="weki-patch-before"><h4>Before</h4><pre>${escapeHtml(before)}</pre></div>` +
+        `<div class="weki-patch-after"><h4>After</h4><pre>${escapeHtml(op.text)}</pre></div>` +
+        `</section>`;
+    })
+    .join("");
+  return `<div class="weki-patch-preview weki-improve-preview">${sections}</div>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

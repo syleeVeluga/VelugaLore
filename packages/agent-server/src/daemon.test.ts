@@ -413,6 +413,101 @@ describe("S-05 agent daemon", () => {
     expect(patch.ops[0]?.kind === "replace_range" ? patch.ops[0].text : "").toContain("executives");
   });
 
+  it("runs ImproveAgent for a selection and returns three alternatives", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const created = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        agentId: "improve",
+        input: "/improve --tone executive --maxWords 12",
+        context: {
+          docId: "doc-1",
+          body: "This is really a very important update for the team",
+          selection: { from: 0, to: 52 }
+        }
+      })
+    });
+    const run = (await created.json()) as {
+      status: string;
+      patch: {
+        outputSchema: string;
+        ops: Array<{ alternativeId: string; text: string }>;
+        readabilityScores: Record<string, { words: number }>;
+        previewHtml: string;
+      };
+    };
+
+    expect(created.status).toBe(201);
+    expect(run.status).toBe("succeeded");
+    expect(run.patch.outputSchema).toBe("ImprovePatch");
+    expect(run.patch.ops.map((op) => op.alternativeId)).toEqual(["conservative", "tonal", "concise"]);
+    expect(run.patch.ops.every((op) => op.text.split(/\s+/).length <= 12)).toBe(true);
+    expect(run.patch.readabilityScores.concise?.words).toBeGreaterThan(0);
+    expect(run.patch.previewHtml).toContain("weki-improve-preview");
+
+    const queued = await approvalStore.list({ status: "proposed" });
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.ops).toHaveLength(3);
+  });
+
+  it("runs AskAgent with workspace sources and prepares a qa page", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const created = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        agentId: "ask",
+        input: "/ask onboarding policy definition",
+        context: {
+          documents: [
+            {
+              docId: "doc-policy",
+              title: "Onboarding Policy",
+              path: "wiki/policies/onboarding.md",
+              body: "The onboarding policy defines the first week checklist and required approvals."
+            },
+            {
+              docId: "doc-random",
+              title: "Unrelated",
+              body: "Quarterly roadmap notes."
+            }
+          ]
+        }
+      })
+    });
+    const run = (await created.json()) as {
+      status: string;
+      patch: {
+        outputSchema: string;
+        answer: { answerMd: string; sources: Array<{ docId: string }>; confidence: number };
+        ops: Array<{ kind: string; docKind: string; path: string; frontmatter: { sources: string[] } }>;
+      };
+    };
+
+    expect(created.status).toBe(201);
+    expect(run.status).toBe("succeeded");
+    expect(run.patch.outputSchema).toBe("AskAnswerPatch");
+    expect(run.patch.answer.sources[0]?.docId).toBe("doc-policy");
+    expect(run.patch.answer.answerMd).toContain("[[Onboarding Policy]]");
+    expect(run.patch.ops[0]).toMatchObject({ kind: "create_doc", docKind: "qa" });
+    expect(run.patch.ops[0]?.path).toBe("wiki/qa/onboarding-policy-definition.md");
+    expect(run.patch.ops[0]?.frontmatter.sources).toEqual(["doc-policy"]);
+
+    const queued = await approvalStore.list({ status: "proposed" });
+    expect(queued[0]?.ops[0]).toMatchObject({ kind: "create_doc", docKind: "qa" });
+  });
+
   it("fails tool calls closed when an agent has no explicit allowlist entry", async () => {
     const runtime = new ToolRuntime({
       read_doc: () => ({ body: "secret" })
@@ -431,6 +526,20 @@ describe("S-05 agent daemon", () => {
 
     await expect(runtime.call("draft", "read_doc", {})).resolves.toEqual({ body: "workspace context" });
     await expect(runtime.call("draft", "web_fetch", {})).rejects.toMatchObject({
+      code: "TOOL_NOT_ALLOWED"
+    });
+  });
+
+  it("allows S-08 agents only their PRD-listed tools", async () => {
+    const runtime = new ToolRuntime({
+      lint_terms: () => ({ violations: [] }),
+      search_workspace: () => ({ hits: [] }),
+      web_fetch: () => ({ body: "external" })
+    });
+
+    await expect(runtime.call("improve", "lint_terms", {})).resolves.toEqual({ violations: [] });
+    await expect(runtime.call("ask", "search_workspace", {})).resolves.toEqual({ hits: [] });
+    await expect(runtime.call("ask", "web_fetch", {})).rejects.toMatchObject({
       code: "TOOL_NOT_ALLOWED"
     });
   });

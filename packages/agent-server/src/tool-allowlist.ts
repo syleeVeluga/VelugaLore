@@ -14,6 +14,8 @@ export type ToolHandler = (input: unknown) => Promise<unknown> | unknown;
 
 export const agentToolAllowlists = {
   draft: ["read_doc", "read_neighbors", "search_workspace", "read_style_guide", "read_glossary"],
+  improve: ["read_doc", "read_style_guide", "read_glossary", "lint_terms"],
+  ask: ["search_workspace", "grep_workspace", "glob_workspace", "read_doc", "read_neighbors", "embed"],
   echo: []
 } as const satisfies Record<string, readonly string[]>;
 
