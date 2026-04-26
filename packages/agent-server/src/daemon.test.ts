@@ -130,7 +130,7 @@ describe("S-05 agent daemon", () => {
       read_doc: () => ({ body: "secret" })
     });
 
-    await expect(runtime.call("echo", "read_doc", {})).rejects.toMatchObject({
+    await expect(runtime.call("unlisted-agent", "read_doc", {})).rejects.toMatchObject({
       code: "TOOL_NOT_ALLOWED"
     });
   });

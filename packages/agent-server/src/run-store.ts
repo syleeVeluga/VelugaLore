@@ -166,7 +166,8 @@ export class SqlAgentRunStore implements AgentRunStore {
         SET
           status = $2,
           finished_at = now(),
-          error = $3
+          error = $3,
+          patch = CASE WHEN $2 = 'failed' THEN NULL ELSE patch END
         WHERE id = $1
         RETURNING
           id,
@@ -254,11 +255,13 @@ export class InMemoryAgentRunStore implements AgentRunStore {
         ? {
             ...current,
             status: "succeeded",
+            error: undefined,
             finishedAt: new Date()
           }
         : {
             ...current,
             status: "failed",
+            patch: undefined,
             error: input.error,
             finishedAt: new Date()
           };

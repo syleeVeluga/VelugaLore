@@ -6,6 +6,7 @@ import {
   type AgentRunInvocation
 } from "@weki/core";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { ZodError } from "zod";
 import { runDraftAgent } from "./draft-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
@@ -159,7 +160,11 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
         sendJson(response, 403, { error: error.code });
         return;
       }
-      sendJson(response, 400, { error: error instanceof Error ? error.message : "BAD_REQUEST" });
+      if (error instanceof ZodError || error instanceof SyntaxError) {
+        sendJson(response, 400, { error: error.message });
+        return;
+      }
+      sendJson(response, 500, { error: "INTERNAL_ERROR" });
     }
   });
 
