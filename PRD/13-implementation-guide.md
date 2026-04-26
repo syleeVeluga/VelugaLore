@@ -33,13 +33,13 @@ last_updated: 2026-04-26
 
 | ID | 제목 | 의존 절 | DOD (Definition of Done) |
 |---|---|---|---|
-| **S-01** | 모노레포 부트스트랩 | §9 | `pnpm i && turbo run build` 통과, GH Actions 그린 |
-| **S-02** | Postgres 스키마 v1 + drizzle 마이그레이션 | §8 | `pnpm db:reset && pnpm db:migrate` 그린, RLS 통합 테스트 통과 |
-| **S-03** | 로컬 Workspace FS watcher + 2-phase write | §11.1 | 손편집·에이전트편집 동시성 테스트 100/100 통과 |
-| **S-04** | CodeMirror 6 에디터 + 슬래시 메뉴 | §6, §7.4 | `/draft` 더미 명령이 정확히 파싱·렌더, 출처별 충돌 표시 |
-| **S-05** | Agent daemon (자체 구현, opencode 패턴 참고) | §4.3, §10 | HTTP+SSE 헬스체크, 더미 에이전트 `echo` 실행. *opencode 코드 의존 없음.* |
-| **S-06** | DraftAgent (코어 1) | §5.1, §4.4 | `/draft` 으로 빈 문서→개요+초안 또는 선택→확장, evals ≥ 0.8 |
-| **S-07** | Patch preview + Approval queue | §8.4, §11.4 | 옵션 비교 UI, 키보드 적용/거절, audit_log 기록 |
+| **S-01** | [x] 모노레포 부트스트랩 | §9 | `pnpm i && turbo run build` 통과, GH Actions 그린 |
+| **S-02** | [x] Postgres 스키마 v1 + drizzle 마이그레이션 | §8 | `pnpm db:reset && pnpm db:migrate` 그린, RLS 통합 테스트 통과 |
+| **S-03** | [~] 로컬 Workspace FS watcher + 2-phase write | §11.1 | 손편집·에이전트편집 동시성 테스트 100/100 통과 |
+| **S-04** | [~] CodeMirror 6 에디터 + 슬래시 메뉴 | §6, §7.4 | `/draft` 더미 명령이 정확히 파싱·렌더, 출처별 충돌 표시 |
+| **S-05** | [x] Agent daemon (자체 구현, opencode 패턴 참고) | §4.3, §10 | HTTP+SSE 헬스체크, 더미 에이전트 `echo` 실행. *opencode 코드 의존 없음.* |
+| **S-06** | [x] DraftAgent (코어 1) | §5.1, §4.4 | `/draft` 으로 빈 문서→개요+초안 또는 선택→확장, evals ≥ 0.8 |
+| **S-07** | [ ] Patch preview + Approval queue | §8.4, §11.4 | 옵션 비교 UI, 키보드 적용/거절, audit_log 기록 |
 | **S-08** | ImproveAgent (코어 2) + AskAgent (코어 3) | §5.1 | `/improve` 3옵션 readability 차이 측정, `/ask` 검색→qa 페이지 자동 저장 |
 | **S-09a** | IngestAgent (코어 4) + import 시스템 작업 | §5.1, §2.2 U1·U2, §8.2 `import_runs` | PDF/URL/이미지 ingest 한 raw → 3~10 노드, docx/Notion/Confluence import (트리/링크 보존 ≥ 0.9) |
 | **S-09b** | **CurateAgent (코어 5) + IA 변경 op** | §5.1, §3.5, §8.4.1 | `/curate scope:wiki/policies` 가 split/merge/move/adopt_orphan 제안, approval 후 적용. 한 run 통째로 revert, doc_versions 보존, 백링크 자동 재배치 100% |
