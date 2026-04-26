@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./agent.js";
 export * from "./domain.js";
 export * from "./slash/index.js";
 

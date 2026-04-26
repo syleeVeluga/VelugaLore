@@ -100,9 +100,11 @@ describe("S-02 schema contract", () => {
 
   it("hardens security definer functions and keeps sync writes compatible with last_editor", async () => {
     const sql = await migrationSql();
-    const securityDefinerFunctions = sql.match(/SECURITY DEFINER SET search_path = public, pg_temp/g) ?? [];
+    const securityDefinerFunctions = sql.match(/SECURITY\s+DEFINER/g) ?? [];
+    const hardenedSecurityDefinerFunctions =
+      sql.match(/SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*public,\s*pg_temp/g) ?? [];
 
-    expect(securityDefinerFunctions.length).toBe(8);
+    expect(hardenedSecurityDefinerFunctions).toHaveLength(securityDefinerFunctions.length);
     expect(sql).toContain("WHEN actor IN ('human', 'agent') THEN actor");
     expect(sql).toContain("ELSE last_editor");
   });

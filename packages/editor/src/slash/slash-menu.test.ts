@@ -55,6 +55,18 @@ describe("slash menu rendering", () => {
     });
   });
 
+  it("renders repeated slash args as separate entries", () => {
+    const invocation = parseSlash("/diff doc:policy --rev 12 --rev 17", { docId: "doc-1" });
+
+    expect(renderSlashInvocation(invocation, translate).args).toEqual(["--doc policy", "--rev 12", "--rev 17"]);
+  });
+
+  it("renders multi-doc targets as space-separated doc tokens", () => {
+    const invocation = parseSlash("/compare doc:a doc:b", { docId: "doc-1" });
+
+    expect(renderSlashInvocation(invocation, translate).target).toBe("doc:a doc:b");
+  });
+
   it("renders command argument help for /draft", () => {
     expect(renderSlashArgumentItems("draft", "--au", translate)).toEqual([
       {
