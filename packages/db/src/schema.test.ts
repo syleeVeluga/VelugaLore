@@ -84,8 +84,24 @@ describe("S-02 schema contract", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION agent_runs_status_only_update()");
     expect(sql).toContain("CREATE TRIGGER tg_agent_runs_status_only_update");
     expect(sql).toContain("agent_runs is append-only except status timestamps and error");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION audit_log_no_update_delete()");
+    expect(sql).toContain("CREATE TRIGGER tg_audit_log_no_update");
+    expect(sql).toContain("audit_log is append-only");
     expect(sql).toContain("CREATE OR REPLACE FUNCTION links_same_workspace()");
     expect(sql).toContain("CREATE TRIGGER tg_links_same_workspace");
+  });
+
+  it("persists patch approval decisions through a terminal state machine and audit log", async () => {
+    const sql = await migrationSql();
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION patches_state_machine_update()");
+    expect(sql).toContain("CREATE TRIGGER tg_patches_state_machine_update");
+    expect(sql).toContain("patch decision is terminal");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION app_decide_patch");
+    expect(sql).toContain("decision NOT IN ('applied','rejected','superseded')");
+    expect(sql).toContain("'patch.applied'");
+    expect(sql).toContain("'patch.rejected'");
+    expect(sql).toContain("'patch.superseded'");
+    expect(sql).toContain("'patches.decide'");
   });
 
   it("gates document writes to editor-or-higher roles and exposes denied-write auditing", async () => {

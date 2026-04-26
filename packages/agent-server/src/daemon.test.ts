@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import {
   createAgentDaemon,
   InMemoryAgentRunStore,
+  InMemoryPatchApprovalStore,
   runDraftAgent,
   SqlAgentRunStore,
   ToolRuntime,
@@ -84,7 +85,8 @@ describe("S-05 agent daemon", () => {
   });
 
   it("runs DraftAgent for an empty document and returns a DraftPatch", async () => {
-    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore() });
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
     servers.push(daemon.server);
     const baseUrl = await listen(daemon.server);
 
@@ -108,6 +110,79 @@ describe("S-05 agent daemon", () => {
     expect(run.patch.outputSchema).toBe("DraftPatch");
     expect(run.patch.ops[0]?.kind).toBe("insert_section_tree");
     expect(run.patch.ops.filter((op) => op.kind === "append_paragraph")).toHaveLength(5);
+
+    const queued = await approvalStore.list("proposed");
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.previewHtml).toContain("weki-patch-preview");
+  });
+
+  it("exposes proposed patches and records keyboard-driven approval decisions over HTTP", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        agentId: "draft",
+        input: "/draft onboarding guide",
+        invokedBy: "55555555-5555-4555-8555-555555555555",
+        context: { docId: "doc-1", body: "" }
+      })
+    });
+
+    const list = await fetch(`${baseUrl}/patches?status=proposed`);
+    const listBody = (await list.json()) as { patches: Array<{ id: string; status: string }> };
+    expect(listBody.patches).toHaveLength(1);
+    expect(listBody.patches[0]?.status).toBe("proposed");
+
+    const decided = await fetch(`${baseUrl}/patches/${listBody.patches[0]?.id}/decision`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        decision: "applied",
+        decidedBy: "55555555-5555-4555-8555-555555555555",
+        rationale: "Accepted from keyboard shortcut."
+      })
+    });
+    const decidedBody = (await decided.json()) as { status: string; decidedBy: string };
+
+    expect(decided.status).toBe(200);
+    expect(decidedBody.status).toBe("applied");
+    expect(decidedBody.decidedBy).toBe("55555555-5555-4555-8555-555555555555");
+  });
+
+  it("rejects invalid approval decisions before they reach the queue", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+    const patch = await approvalStore.propose({
+      run: {
+        id: "66666666-6666-4666-8666-666666666666",
+        workspaceId,
+        agentId: "draft",
+        invocation: { workspaceId, agentId: "draft", input: "" },
+        status: "succeeded",
+        startedAt: new Date()
+      },
+      patch: { kind: "Patch", ops: [], rationale: "", requiresApproval: true }
+    });
+
+    const response = await fetch(`${baseUrl}/patches/${patch.id}/decision`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        decision: "approved",
+        decidedBy: "55555555-5555-4555-8555-555555555555"
+      })
+    });
+
+    expect(response.status).toBe(400);
+    expect((await approvalStore.get(patch.id))?.status).toBe("proposed");
   });
 
   it("runs DraftAgent for a selection and proposes one replace_range op", () => {
