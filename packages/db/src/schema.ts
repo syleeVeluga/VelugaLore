@@ -11,11 +11,13 @@ import {
   patchStatuses,
   tripleSources
 } from "@weki/core";
+import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
   boolean,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -142,7 +144,9 @@ export const documents = pgTable(
     title: text("title").notNull(),
     kind: text("kind", { enum: documentKinds }).notNull(),
     body: text("body").notNull().default(""),
-    bodyTsv: tsvector("body_tsv"),
+    bodyTsv: tsvector("body_tsv").generatedAlwaysAs(
+      sql`to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(body, ''))`
+    ),
     frontmatter: jsonb("frontmatter").notNull().default({}),
     rev: bigint("rev", { mode: "bigint" }).notNull().default(1n),
     bodySha256: bytea("body_sha256").notNull(),
@@ -155,7 +159,13 @@ export const documents = pgTable(
   (table) => ({
     workspacePathUnique: unique("documents_workspace_path_unique").on(table.workspaceId, table.path),
     kindIdx: index("documents_kind_idx").on(table.workspaceId, table.kind),
-    updatedIdx: index("documents_updated_idx").on(table.workspaceId, table.updatedAt)
+    updatedIdx: index("documents_updated_idx").on(table.workspaceId, table.updatedAt.desc()),
+    bodyTsvIdx: index("documents_body_tsv_idx").using("gin", table.bodyTsv),
+    bodyTrgmIdx: index("documents_body_trgm_idx").using("gin", table.body.op("gin_trgm_ops")),
+    frontmatterIdx: index("documents_frontmatter_idx").using("gin", table.frontmatter.op("jsonb_path_ops")),
+    embeddingIdx: index("documents_embedding_idx")
+      .using("ivfflat", table.embedding.op("vector_cosine_ops"))
+      .with({ lists: 100 })
   })
 );
 
@@ -180,7 +190,11 @@ export const importRuns = pgTable(
     notes: text("notes")
   },
   (table) => ({
-    workspaceTimeIdx: index("import_runs_workspace_time").on(table.workspaceId, table.startedAt)
+    workspaceTimeIdx: index("import_runs_workspace_time").on(table.workspaceId, table.startedAt.desc()),
+    rollbackOfFk: foreignKey({
+      columns: [table.rollbackOf],
+      foreignColumns: [table.id]
+    })
   })
 );
 
@@ -224,7 +238,11 @@ export const documentTags = pgTable(
     name: text("name").notNull()
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.docId, table.name] })
+    pk: primaryKey({ columns: [table.docId, table.name] }),
+    tagFk: foreignKey({
+      columns: [table.workspaceId, table.name],
+      foreignColumns: [tags.workspaceId, tags.name]
+    }).onDelete("cascade")
   })
 );
 
@@ -283,7 +301,11 @@ export const agentRuns = pgTable(
     parentRunId: uuid("parent_run_id")
   },
   (table) => ({
-    workspaceTimeIdx: index("agent_runs_workspace_time").on(table.workspaceId, table.startedAt)
+    workspaceTimeIdx: index("agent_runs_workspace_time").on(table.workspaceId, table.startedAt.desc()),
+    parentRunFk: foreignKey({
+      columns: [table.parentRunId],
+      foreignColumns: [table.id]
+    })
   })
 );
 

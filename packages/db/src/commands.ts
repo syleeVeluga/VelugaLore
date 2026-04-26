@@ -2,6 +2,7 @@ import pg from "pg";
 import { migrations, migrationsTableName } from "./migrations.js";
 
 const { Client } = pg;
+const resetConfirmationEnv = "WEKI_DB_RESET_CONFIRM";
 
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL;
@@ -21,17 +22,27 @@ async function withClient<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> 
   }
 }
 
+function migrationsTableSql(): string {
+  return migrationsTableName;
+}
+
+function requireResetConfirmation(): void {
+  if (process.env[resetConfirmationEnv] !== "1") {
+    throw new Error(`${resetConfirmationEnv}=1 is required before dropping and recreating the public schema`);
+  }
+}
+
 export async function migrate(): Promise<void> {
   await withClient(async (client) => {
     await client.query(`
-      CREATE TABLE IF NOT EXISTS ${migrationsTableName} (
+      CREATE TABLE IF NOT EXISTS ${migrationsTableSql()} (
         id text PRIMARY KEY,
         applied_at timestamptz NOT NULL DEFAULT now()
       )
     `);
 
     for (const migration of migrations) {
-      const existing = await client.query("SELECT 1 FROM weki_schema_migrations WHERE id = $1", [migration.id]);
+      const existing = await client.query(`SELECT 1 FROM ${migrationsTableSql()} WHERE id = $1`, [migration.id]);
       if (existing.rowCount && existing.rowCount > 0) {
         continue;
       }
@@ -39,7 +50,7 @@ export async function migrate(): Promise<void> {
       await client.query("BEGIN");
       try {
         await client.query(await migration.readSql());
-        await client.query("INSERT INTO weki_schema_migrations (id) VALUES ($1)", [migration.id]);
+        await client.query(`INSERT INTO ${migrationsTableSql()} (id) VALUES ($1)`, [migration.id]);
         await client.query("COMMIT");
         console.log(`applied ${migration.id}`);
       } catch (error) {
@@ -51,6 +62,7 @@ export async function migrate(): Promise<void> {
 }
 
 export async function reset(): Promise<void> {
+  requireResetConfirmation();
   await withClient(async (client) => {
     await client.query(`
       DROP SCHEMA public CASCADE;

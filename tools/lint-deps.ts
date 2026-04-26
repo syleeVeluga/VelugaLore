@@ -25,11 +25,18 @@ const packageRules = new Map<string, PackageRule>([
   ["@weki/plugin-sdk", { root: "packages/plugin-sdk", allowed: new Set(["@weki/core"]) }],
   ["@weki/cli", { root: "packages/cli", allowed: new Set(["@weki/core", "@weki/db", "@weki/agent-server"]) }],
   ["@weki/desktop", { root: "packages/desktop", allowed: new Set(["@weki/core", "@weki/editor", "@weki/graph"]) }],
-  ["@weki/web", { root: "packages/web", allowed: new Set(["@weki/core", "@weki/editor", "@weki/graph"]) }]
+  ["@weki/web", { root: "packages/web", allowed: new Set(["@weki/core", "@weki/editor", "@weki/graph"]) }],
+  ["@weki/docs", { root: "apps/docs", allowed: new Set() }],
+  ["@weki/marketing", { root: "apps/marketing", allowed: new Set() }]
 ]);
 
 const importPattern =
   /\b(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s*)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+function isInsidePath(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
 
 async function listTsFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -95,7 +102,7 @@ async function main(): Promise<void> {
 
         if (specifier.startsWith(".")) {
           const resolved = path.resolve(path.dirname(file), specifier);
-          if (!resolved.startsWith(packageRoot)) {
+          if (!isInsidePath(packageRoot, resolved)) {
             violations.push(`${path.relative(repoRoot, file)} reaches outside ${rule.root} with ${specifier}`);
           }
         }

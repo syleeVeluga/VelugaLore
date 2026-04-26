@@ -97,4 +97,13 @@ describe("S-02 schema contract", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION app_update_document_body");
     expect(sql).toContain("'write_denied'");
   });
+
+  it("hardens security definer functions and keeps sync writes compatible with last_editor", async () => {
+    const sql = await migrationSql();
+    const securityDefinerFunctions = sql.match(/SECURITY DEFINER SET search_path = public, pg_temp/g) ?? [];
+
+    expect(securityDefinerFunctions.length).toBe(8);
+    expect(sql).toContain("WHEN actor IN ('human', 'agent') THEN actor");
+    expect(sql).toContain("ELSE last_editor");
+  });
 });

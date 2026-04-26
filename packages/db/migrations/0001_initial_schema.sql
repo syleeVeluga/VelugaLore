@@ -247,14 +247,14 @@ CREATE OR REPLACE FUNCTION current_user_org_ids() RETURNS uuid[] AS $$
   SELECT coalesce(array_agg(org_id), ARRAY[]::uuid[])
   FROM memberships
   WHERE user_id = app_user_id();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_role_for_org(target_org_id uuid) RETURNS text AS $$
   SELECT role
   FROM memberships
   WHERE org_id = target_org_id
     AND user_id = app_user_id();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_role_for_workspace(target_workspace_id uuid) RETURNS text AS $$
   SELECT m.role
@@ -262,19 +262,19 @@ CREATE OR REPLACE FUNCTION app_role_for_workspace(target_workspace_id uuid) RETU
   JOIN workspaces w ON w.org_id = m.org_id
   WHERE w.id = target_workspace_id
     AND m.user_id = app_user_id();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_can_read_workspace(target_workspace_id uuid) RETURNS boolean AS $$
   SELECT app_role_for_workspace(target_workspace_id) IN ('owner','admin','editor','reader');
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_can_write_workspace(target_workspace_id uuid) RETURNS boolean AS $$
   SELECT app_role_for_workspace(target_workspace_id) IN ('owner','admin','editor');
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_can_admin_workspace(target_workspace_id uuid) RETURNS boolean AS $$
   SELECT app_role_for_workspace(target_workspace_id) IN ('owner','admin');
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_audit_write_denied(
   target_workspace_id uuid,
@@ -295,7 +295,7 @@ BEGIN
     jsonb_build_object('attempted_action', attempted_action, 'details', details)
   );
 END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_update_document_body(
   target_doc_id uuid,
@@ -327,7 +327,10 @@ BEGIN
         body_sha256 = digest(new_body, 'sha256'),
         rev = rev + 1,
         updated_at = now(),
-        last_editor = actor
+        last_editor = CASE
+          WHEN actor IN ('human', 'agent') THEN actor
+          ELSE last_editor
+        END
     WHERE id = target_doc_id
       AND rev = expected_rev;
 
@@ -340,7 +343,7 @@ BEGIN
 
   RETURN true;
 END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 ALTER TABLE orgs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
