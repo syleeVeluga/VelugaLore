@@ -5,7 +5,7 @@ export class ToolNotAllowedError extends Error {
     readonly agentId: string,
     readonly toolId: string
   ) {
-    super(`Tool is not allowed for agent`);
+    super(`Tool "${toolId}" is not allowed for agent "${agentId}"`);
     this.name = "ToolNotAllowedError";
   }
 }
