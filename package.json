@@ -8,13 +8,13 @@
     "pnpm": ">=10"
   },
   "scripts": {
-    "build": "turbo run build",
+    "build": "node tools/run-root-task.cjs build",
     "ci": "pnpm lint:deps && pnpm build",
     "db:migrate": "pnpm --filter @weki/db db:migrate",
     "db:reset": "pnpm --filter @weki/db db:reset",
     "dev": "turbo run dev",
     "lint:deps": "tsx tools/lint-deps.ts",
-    "test": "turbo run test"
+    "test": "node tools/run-root-task.cjs test"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

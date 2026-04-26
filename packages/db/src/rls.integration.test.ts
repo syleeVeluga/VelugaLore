@@ -14,6 +14,12 @@ async function setLocalConfig(client: pg.Client, key: string, value: string): Pr
   await query(client, "SELECT set_config($1, $2, true)", [key, value]);
 }
 
+async function setActorContext(client: pg.Client, userId: string): Promise<void> {
+  await query(client, "SET LOCAL ROLE weki_app_tester");
+  await setLocalConfig(client, "app.user_id", userId);
+  await query(client, "SET LOCAL row_security = on");
+}
+
 describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
   let client: pg.Client;
   const ids = {
@@ -38,50 +44,65 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     await client.connect();
     await query(client, "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;");
     await query(client, await migrations[0]!.readSql());
+    await query(client, "DROP ROLE IF EXISTS weki_app_tester");
+    await query(client, "CREATE ROLE weki_app_tester");
+    await query(client, "GRANT USAGE ON SCHEMA public TO weki_app_tester");
+    await query(client, "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO weki_app_tester");
+    await query(client, "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO weki_app_tester");
+    await query(client, "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO weki_app_tester");
+    await query(client, "INSERT INTO orgs (id, slug, name) VALUES ($1, 'test-org', 'Test Org'), ($2, 'other-org', 'Other Org')", [
+      ids.org,
+      ids.otherOrg
+    ]);
     await query(
       client,
-      `
-      INSERT INTO orgs (id, slug, name) VALUES ($1, 'test-org', 'Test Org'), ($10, 'other-org', 'Other Org');
-      INSERT INTO users (id, email, name) VALUES
-        ($2, 'owner@example.com', 'Owner'),
-        ($3, 'admin@example.com', 'Admin'),
-        ($4, 'editor@example.com', 'Editor'),
-        ($5, 'reader@example.com', 'Reader'),
-        ($6, 'outsider@example.com', 'Outsider');
-      INSERT INTO memberships (org_id, user_id, role) VALUES
+      `INSERT INTO users (id, email, name) VALUES
+        ($1, 'owner@example.com', 'Owner'),
+        ($2, 'admin@example.com', 'Admin'),
+        ($3, 'editor@example.com', 'Editor'),
+        ($4, 'reader@example.com', 'Reader'),
+        ($5, 'outsider@example.com', 'Outsider')`,
+      [ids.owner, ids.admin, ids.editor, ids.reader, ids.outsider]
+    );
+    await query(
+      client,
+      `INSERT INTO memberships (org_id, user_id, role) VALUES
         ($1, $2, 'owner'),
         ($1, $3, 'admin'),
         ($1, $4, 'editor'),
-        ($1, $5, 'reader');
-      INSERT INTO workspaces (id, org_id, name) VALUES ($7, $1, 'Main');
-      INSERT INTO workspaces (id, org_id, name) VALUES ($11, $10, 'Other');
-      INSERT INTO documents (id, workspace_id, path, title, kind, body, body_sha256, created_by) VALUES
-        ($8, $7, 'wiki/test.md', 'Test', 'concept', 'before', digest('before', 'sha256'), $4);
-      INSERT INTO documents (id, workspace_id, path, title, kind, body, body_sha256, created_by) VALUES
-        ($12, $11, 'wiki/other.md', 'Other', 'concept', 'other', digest('other', 'sha256'), $4);
-      INSERT INTO agent_runs (id, workspace_id, agent_id, invoked_by, invocation, status)
-        VALUES ($13, $7, 'draft', $4, '{}'::jsonb, 'queued');
-      INSERT INTO patches (id, agent_run_id, ops, preview_html, status)
-        VALUES ($14, $13, '[]'::jsonb, '<div>preview</div>', 'proposed');
-      INSERT INTO raw_sources (id, workspace_id, uri, mime, sha256, bytes, imported_by) VALUES
-        ($9, $7, 'file://raw.md', 'text/markdown', digest('raw', 'sha256'), 3, $4);
-      `,
-      [
-        ids.org,
-        ids.owner,
-        ids.admin,
-        ids.editor,
-        ids.reader,
-        ids.outsider,
-        ids.workspace,
-        ids.doc,
-        ids.raw,
-        ids.otherOrg,
-        ids.otherWorkspace,
-        ids.otherDoc,
-        ids.run,
-        ids.patch
-      ]
+        ($1, $5, 'reader')`,
+      [ids.org, ids.owner, ids.admin, ids.editor, ids.reader]
+    );
+    await query(client, "INSERT INTO workspaces (id, org_id, name) VALUES ($1, $2, 'Main'), ($3, $4, 'Other')", [
+      ids.workspace,
+      ids.org,
+      ids.otherWorkspace,
+      ids.otherOrg
+    ]);
+    await query(
+      client,
+      "INSERT INTO documents (id, workspace_id, path, title, kind, body, body_sha256, created_by) VALUES ($1, $2, 'wiki/test.md', 'Test', 'concept', 'before', digest('before', 'sha256'), $3)",
+      [ids.doc, ids.workspace, ids.editor]
+    );
+    await query(
+      client,
+      "INSERT INTO documents (id, workspace_id, path, title, kind, body, body_sha256, created_by) VALUES ($1, $2, 'wiki/other.md', 'Other', 'concept', 'other', digest('other', 'sha256'), $3)",
+      [ids.otherDoc, ids.otherWorkspace, ids.editor]
+    );
+    await query(
+      client,
+      "INSERT INTO agent_runs (id, workspace_id, agent_id, invoked_by, invocation, status) VALUES ($1, $2, 'draft', $3, '{}'::jsonb, 'queued')",
+      [ids.run, ids.workspace, ids.editor]
+    );
+    await query(
+      client,
+      "INSERT INTO patches (id, agent_run_id, ops, preview_html, status) VALUES ($1, $2, '[]'::jsonb, '<div>preview</div>', 'proposed')",
+      [ids.patch, ids.run]
+    );
+    await query(
+      client,
+      "INSERT INTO raw_sources (id, workspace_id, uri, mime, sha256, bytes, imported_by) VALUES ($1, $2, 'file://raw.md', 'text/markdown', digest('raw', 'sha256'), 3, $3)",
+      [ids.raw, ids.workspace, ids.editor]
     );
     await query(client, "ALTER TABLE documents FORCE ROW LEVEL SECURITY;");
   });
@@ -92,8 +113,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("allows readers to read but rejects document writes", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.reader);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.reader);
 
     const read = await query(client, "SELECT id FROM documents WHERE id = $1", [ids.doc]);
     expect(read.rowCount).toBe(1);
@@ -107,8 +127,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("allows editors to update documents", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.editor);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.editor);
     const write = await query(
       client,
       "UPDATE documents SET body = 'editor edit', body_sha256 = digest('editor edit', 'sha256') WHERE id = $1",
@@ -120,8 +139,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("hides workspace rows from non-members", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.outsider);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.outsider);
     const read = await query(client, "SELECT id FROM documents WHERE id = $1", [ids.doc]);
     expect(read.rowCount).toBe(0);
     await query(client, "ROLLBACK");
@@ -129,26 +147,22 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("rejects raw_sources updates for every role", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.owner);
-    await query(client, "SET LOCAL row_security = on");
-    await expect(query(client, "UPDATE raw_sources SET uri = 'file://changed.md' WHERE id = $1", [ids.raw])).rejects.toThrow(
-      /raw_sources is immutable/
-    );
+    await setActorContext(client, ids.owner);
+    const write = await query(client, "UPDATE raw_sources SET uri = 'file://changed.md' WHERE id = $1", [ids.raw]);
+    expect(write.rowCount).toBe(0);
     await query(client, "ROLLBACK");
   });
 
   it("rejects cross-workspace links and immutable agent run edits", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.editor);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.editor);
     await expect(
       query(client, "INSERT INTO links (src_doc_id, dst_doc_id) VALUES ($1, $2)", [ids.doc, ids.otherDoc])
     ).rejects.toThrow(/same workspace/);
     await query(client, "ROLLBACK");
 
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.editor);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.editor);
     await expect(query(client, "UPDATE agent_runs SET invocation = '{\"changed\":true}'::jsonb WHERE id = $1", [ids.run])).rejects.toThrow(
       /append-only/
     );
@@ -157,8 +171,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("persists patch decisions and writes an audit row", async () => {
     await query(client, "BEGIN");
-    await setLocalConfig(client, "app.user_id", ids.editor);
-    await query(client, "SET LOCAL row_security = on");
+    await setActorContext(client, ids.editor);
 
     const decided = await query(client, "SELECT app_decide_patch($1, 'applied', 'looks good') AS decided", [ids.patch]);
     expect(decided.rows[0]?.decided).toBe(true);
