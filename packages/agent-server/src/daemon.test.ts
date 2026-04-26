@@ -4,8 +4,10 @@ import {
   createAgentDaemon,
   InMemoryAgentRunStore,
   InMemoryPatchApprovalStore,
+  PatchDecisionDeniedError,
   runDraftAgent,
   SqlAgentRunStore,
+  SqlPatchApprovalStore,
   ToolRuntime,
   type AgentRunStore,
   type StoredAgentRun
@@ -226,6 +228,136 @@ describe("S-05 agent daemon", () => {
     });
     expect(terminal.status).toBe(409);
     await expect(terminal.json()).resolves.toEqual({ error: "PATCH_DECISION_TERMINAL" });
+  });
+
+  it("locks SQL patch rows before calling the decision function", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    const patchId = "99999999-9999-4999-8999-999999999999";
+    const decidedBy = "55555555-5555-4555-8555-555555555555";
+    const store = new SqlPatchApprovalStore({
+      async query<Row>(sql: string, values?: unknown[]) {
+        queries.push({ sql, values });
+        if (sql.includes("FOR UPDATE OF p")) {
+          return { rows: [{ status: "proposed", can_write: true }] as Row[] };
+        }
+        if (sql.includes("app_decide_patch")) {
+          return { rows: [{ decided: true }] as Row[] };
+        }
+        if (sql.includes("JOIN agent_runs")) {
+          return {
+            rows: [
+              {
+                id: patchId,
+                agent_run_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                workspace_id: workspaceId,
+                ops: [],
+                preview_html: null,
+                status: "applied",
+                decided_by: decidedBy,
+                decided_at: new Date("2026-04-26T00:00:00.000Z")
+              }
+            ] as Row[]
+          };
+        }
+        return { rows: [] as Row[] };
+      }
+    });
+
+    await expect(store.decide({ id: patchId, decision: "applied", decidedBy })).resolves.toMatchObject({
+      id: patchId,
+      status: "applied"
+    });
+
+    const lockIndex = queries.findIndex((query) => query.sql.includes("FOR UPDATE OF p"));
+    const decisionIndex = queries.findIndex((query) => query.sql.includes("app_decide_patch"));
+    expect(queries[lockIndex]?.sql).toContain("app_can_write_workspace");
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(decisionIndex).toBeGreaterThan(lockIndex);
+    expect(queries.at(-1)?.sql).toBe("COMMIT");
+  });
+
+  it("uses a typed SQL patch decision denial instead of leaking an internal error", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    const patchId = "99999999-9999-4999-8999-999999999999";
+    const store = new SqlPatchApprovalStore({
+      async query<Row>(sql: string, values?: unknown[]) {
+        queries.push({ sql, values });
+        if (sql.includes("FOR UPDATE OF p")) {
+          return { rows: [{ status: "proposed", can_write: true }] as Row[] };
+        }
+        if (sql.includes("app_decide_patch")) {
+          return { rows: [{ decided: false }] as Row[] };
+        }
+        return { rows: [] as Row[] };
+      }
+    });
+
+    await expect(
+      store.decide({
+        id: patchId,
+        decision: "applied",
+        decidedBy: "55555555-5555-4555-8555-555555555555"
+      })
+    ).rejects.toBeInstanceOf(PatchDecisionDeniedError);
+    expect(queries.at(-1)?.sql).toBe("ROLLBACK");
+  });
+
+  it("does not expose SQL terminal status to users without patch write permission", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    const patchId = "99999999-9999-4999-8999-999999999999";
+    const store = new SqlPatchApprovalStore({
+      async query<Row>(sql: string, values?: unknown[]) {
+        queries.push({ sql, values });
+        if (sql.includes("FOR UPDATE OF p")) {
+          return { rows: [{ status: "rejected", can_write: false }] as Row[] };
+        }
+        return { rows: [] as Row[] };
+      }
+    });
+
+    await expect(
+      store.decide({
+        id: patchId,
+        decision: "applied",
+        decidedBy: "55555555-5555-4555-8555-555555555555"
+      })
+    ).rejects.toBeInstanceOf(PatchDecisionDeniedError);
+    expect(queries.some((query) => query.sql.includes("app_decide_patch"))).toBe(false);
+    expect(queries.at(-1)?.sql).toBe("ROLLBACK");
+  });
+
+  it("returns 403 when the approval store denies a patch decision", async () => {
+    const daemon = createAgentDaemon({
+      store: new InMemoryAgentRunStore(),
+      approvalStore: {
+        async propose() {
+          throw new Error("propose not used");
+        },
+        async decide() {
+          throw new PatchDecisionDeniedError("99999999-9999-4999-8999-999999999999");
+        },
+        async get() {
+          return undefined;
+        },
+        async list() {
+          return [];
+        }
+      }
+    });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const denied = await fetch(`${baseUrl}/patches/99999999-9999-4999-8999-999999999999/decision`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        decision: "applied",
+        decidedBy: "55555555-5555-4555-8555-555555555555"
+      })
+    });
+
+    expect(denied.status).toBe(403);
+    await expect(denied.json()).resolves.toEqual({ error: "PATCH_DECISION_DENIED" });
   });
 
   it("rejects invalid approval decisions before they reach the queue", async () => {

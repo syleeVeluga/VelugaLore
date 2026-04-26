@@ -48,6 +48,14 @@ export class PatchDecisionTerminalError extends Error {
   }
 }
 
+export class PatchDecisionDeniedError extends Error {
+  readonly code = "PATCH_DECISION_DENIED";
+  constructor(id: string) {
+    super(`Patch ${id} decision was denied`);
+    this.name = "PatchDecisionDeniedError";
+  }
+}
+
 export interface PatchApprovalStore {
   propose(input: ProposePatchInput): Promise<StoredPatchApproval>;
   decide(input: DecidePatchInput): Promise<StoredPatchApproval>;
@@ -68,6 +76,11 @@ type PatchApprovalSqlRow = {
   status: PatchStatus;
   decided_by: string | null;
   decided_at: Date | string | null;
+};
+
+type PatchDecisionPrecheckSqlRow = {
+  status: PatchStatus;
+  can_write: boolean;
 };
 
 function rowToPatch(row: PatchApprovalSqlRow): StoredPatchApproval {
@@ -119,16 +132,25 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
     await this.client.query("BEGIN");
     try {
       await this.client.query("SELECT set_config('app.user_id', $1, true)", [input.decidedBy]);
-      const existing = await this.client.query<{ status: PatchStatus }>(
-        "SELECT status FROM patches WHERE id = $1",
+      const existing = await this.client.query<PatchDecisionPrecheckSqlRow>(
+        `
+          SELECT p.status, app_can_write_workspace(ar.workspace_id) AS can_write
+          FROM patches p
+          JOIN agent_runs ar ON ar.id = p.agent_run_id
+          WHERE p.id = $1
+          FOR UPDATE OF p
+        `,
         [input.id]
       );
-      const currentStatus = existing.rows[0]?.status;
-      if (!currentStatus) {
+      const current = existing.rows[0];
+      if (!current) {
         throw new PatchNotFoundError(input.id);
       }
-      if (currentStatus !== "proposed") {
-        throw new PatchDecisionTerminalError(input.id, currentStatus);
+      if (!current.can_write) {
+        throw new PatchDecisionDeniedError(input.id);
+      }
+      if (current.status !== "proposed") {
+        throw new PatchDecisionTerminalError(input.id, current.status);
       }
 
       const decision = await this.client.query<{ decided: boolean }>(
@@ -136,7 +158,7 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
         [input.id, input.decision, input.rationale ?? null]
       );
       if (!decision.rows[0]?.decided) {
-        throw new Error("Patch decision was denied");
+        throw new PatchDecisionDeniedError(input.id);
       }
       const patch = await this.get(input.id);
       if (!patch) {

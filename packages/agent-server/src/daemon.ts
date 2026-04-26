@@ -12,6 +12,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { z, ZodError } from "zod";
 import {
   InMemoryPatchApprovalStore,
+  PatchDecisionDeniedError,
   PatchDecisionTerminalError,
   PatchNotFoundError,
   type ApprovalDecision,
@@ -223,6 +224,10 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
       }
       if (error instanceof PatchNotFoundError) {
         sendJson(response, 404, { error: error.code });
+        return;
+      }
+      if (error instanceof PatchDecisionDeniedError) {
+        sendJson(response, 403, { error: error.code });
         return;
       }
       if (error instanceof PatchDecisionTerminalError) {
