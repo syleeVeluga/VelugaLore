@@ -11,10 +11,14 @@ describe("S-08.5 renderer shell", () => {
     expect(html).toContain("Files");
     expect(html).toContain("Agent");
     expect(html).toContain("Open Workspace");
+    expect(html).toContain("Browse");
   });
 });
 
 const fakeApi: DesktopApi = {
+  async pickWorkspaceDirectory() {
+    return undefined;
+  },
   async openWorkspace() {
     return { workspaceId: "00000000-0000-4000-8000-000000000000", root: "D:/tmp/weki", agentServerPort: 0 };
   },

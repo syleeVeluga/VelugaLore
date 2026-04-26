@@ -10,5 +10,12 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
+# Rust / Tauri build artifacts
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/gen/
+
+# Tooling state
+.claude/
+
 .DS_Store
 Thumbs.db

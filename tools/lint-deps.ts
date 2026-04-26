@@ -31,7 +31,7 @@ const packageRules = new Map<string, PackageRule>([
 ]);
 
 const rustDependencyRules = new Map<string, Set<string>>([
-  ["packages/desktop/src-tauri/Cargo.toml", new Set(["notify", "serde", "serde_json", "tauri", "tauri-build", "tokio"])]
+  ["packages/desktop/src-tauri/Cargo.toml", new Set(["notify", "serde", "serde_json", "tauri", "tauri-build", "tauri-plugin-dialog", "tokio"])]
 ]);
 
 const importPattern =
