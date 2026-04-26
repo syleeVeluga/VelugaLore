@@ -104,6 +104,7 @@ describe("S-02 schema contract", () => {
     const hardenedSecurityDefinerFunctions =
       sql.match(/SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*public,\s*pg_temp/g) ?? [];
 
+    expect(securityDefinerFunctions.length).toBeGreaterThan(0);
     expect(hardenedSecurityDefinerFunctions).toHaveLength(securityDefinerFunctions.length);
     expect(sql).toContain("WHEN actor IN ('human', 'agent') THEN actor");
     expect(sql).toContain("ELSE last_editor");
