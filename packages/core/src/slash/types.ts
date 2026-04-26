@@ -2,11 +2,13 @@ export type SlashCommandGroup = "core" | "system" | "ext" | "workspace" | "plugi
 
 export type SlashTarget =
   | { kind: "selection"; docId: string; from: number; to: number }
+  | { kind: "docs"; docIds: string[] }
   | { kind: "doc"; docId: string }
   | { kind: "path"; path: string }
   | { kind: "query"; query: string };
 
 export type SlashArgValue = string | boolean | number;
+export type SlashArg = SlashArgValue | SlashArgValue[];
 
 export interface EditorSelectionContext {
   docId: string;
@@ -23,7 +25,7 @@ export interface EditorContext {
 export interface SlashInvocation {
   verb: string;
   target?: SlashTarget;
-  args: Record<string, SlashArgValue>;
+  args: Record<string, SlashArg>;
   freeText?: string;
   raw: string;
 }

@@ -10,6 +10,10 @@ async function query(client: pg.Client, sql: string, params: unknown[] = []) {
   return client.query(sql, params);
 }
 
+async function setLocalConfig(client: pg.Client, key: string, value: string): Promise<void> {
+  await query(client, "SELECT set_config($1, $2, true)", [key, value]);
+}
+
 describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
   let client: pg.Client;
   const ids = {
@@ -84,7 +88,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("allows readers to read but rejects document writes", async () => {
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.reader]);
+    await setLocalConfig(client, "app.user_id", ids.reader);
     await query(client, "SET LOCAL row_security = on");
 
     const read = await query(client, "SELECT id FROM documents WHERE id = $1", [ids.doc]);
@@ -99,7 +103,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("allows editors to update documents", async () => {
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.editor]);
+    await setLocalConfig(client, "app.user_id", ids.editor);
     await query(client, "SET LOCAL row_security = on");
     const write = await query(
       client,
@@ -112,7 +116,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("hides workspace rows from non-members", async () => {
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.outsider]);
+    await setLocalConfig(client, "app.user_id", ids.outsider);
     await query(client, "SET LOCAL row_security = on");
     const read = await query(client, "SELECT id FROM documents WHERE id = $1", [ids.doc]);
     expect(read.rowCount).toBe(0);
@@ -121,7 +125,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("rejects raw_sources updates for every role", async () => {
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.owner]);
+    await setLocalConfig(client, "app.user_id", ids.owner);
     await query(client, "SET LOCAL row_security = on");
     await expect(query(client, "UPDATE raw_sources SET uri = 'file://changed.md' WHERE id = $1", [ids.raw])).rejects.toThrow(
       /raw_sources is immutable/
@@ -131,7 +135,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
 
   it("rejects cross-workspace links and immutable agent run edits", async () => {
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.editor]);
+    await setLocalConfig(client, "app.user_id", ids.editor);
     await query(client, "SET LOCAL row_security = on");
     await expect(
       query(client, "INSERT INTO links (src_doc_id, dst_doc_id) VALUES ($1, $2)", [ids.doc, ids.otherDoc])
@@ -139,7 +143,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     await query(client, "ROLLBACK");
 
     await query(client, "BEGIN");
-    await query(client, "SET LOCAL app.user_id = $1", [ids.editor]);
+    await setLocalConfig(client, "app.user_id", ids.editor);
     await query(client, "SET LOCAL row_security = on");
     await expect(query(client, "UPDATE agent_runs SET invocation = '{\"changed\":true}'::jsonb WHERE id = $1", [ids.run])).rejects.toThrow(
       /append-only/

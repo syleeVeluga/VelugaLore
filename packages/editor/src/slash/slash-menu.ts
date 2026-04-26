@@ -110,7 +110,9 @@ export function renderSlashArgumentValueItems(
 
 export function renderSlashInvocation(invocation: SlashInvocation, translate: Translate = identityTranslate): SlashInvocationView {
   const command = getSlashCommand(invocation.verb);
-  const args = Object.entries(invocation.args).map(([key, value]) => `--${key} ${String(value)}`);
+  const args = Object.entries(invocation.args).flatMap(([key, value]) =>
+    (Array.isArray(value) ? value : [value]).map((item) => `--${key} ${String(item)}`)
+  );
 
   return {
     title: `/${invocation.verb}`,
@@ -254,6 +256,8 @@ function renderTarget(target: SlashInvocation["target"]): string {
   switch (target.kind) {
     case "selection":
       return `selection:${target.docId}:${target.from}:${target.to}`;
+    case "docs":
+      return target.docIds.map((docId) => `doc:${docId}`).join(" ");
     case "doc":
       return `doc:${target.docId}`;
     case "path":

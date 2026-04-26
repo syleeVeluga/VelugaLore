@@ -15,4 +15,6 @@ pnpm install
 pnpm lint:deps
 pnpm build
 powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate
+# Linux/macOS/CI:
+pwsh -File tools/agent-harness.ps1 -Command validate
 ```

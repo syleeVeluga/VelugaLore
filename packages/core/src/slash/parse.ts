@@ -1,4 +1,5 @@
-import type { EditorContext, SlashArgValue, SlashInvocation, SlashTarget } from "./types.js";
+import { getSlashCommand } from "./catalog.js";
+import type { EditorContext, SlashArg, SlashArgValue, SlashInvocation, SlashTarget } from "./types.js";
 
 export type SlashParseErrorCode =
   | "empty"
@@ -54,9 +55,10 @@ export function parseSlash(input: string, ctx: EditorContext): SlashInvocation {
     throw new SlashParseError("invalid_verb", `Invalid slash command verb: ${verb}`);
   }
 
-  const args: Record<string, SlashArgValue> = {};
+  const command = getSlashCommand(verb);
+  const args: Record<string, SlashArg> = {};
   const freeTextTokens: string[] = [];
-  let target = selectionTarget(ctx);
+  let target = command?.selection === "none" ? undefined : selectionTarget(ctx);
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -76,17 +78,17 @@ export function parseSlash(input: string, ctx: EditorContext): SlashInvocation {
       }
 
       if (parsed.value !== undefined) {
-        args[flagName] = coerceArgValue(parsed.value);
+        appendArg(args, flagName, coerceArgValue(parsed.value));
         continue;
       }
 
       const next = tokens[index + 1];
       if (!next || next.value.startsWith("--")) {
-        args[flagName] = true;
+        appendArg(args, flagName, true);
         continue;
       }
 
-      args[flagName] = coerceArgValue(next.value);
+      appendArg(args, flagName, coerceArgValue(next.value));
       index += 1;
       continue;
     }
@@ -101,12 +103,14 @@ export function parseSlash(input: string, ctx: EditorContext): SlashInvocation {
       if (key === "path") {
         target = { kind: "path", path: rawValue };
       } else if (key === "doc") {
-        target = { kind: "doc", docId: rawValue };
+        target = appendDocTarget(target, rawValue);
       } else if (key === "query") {
         target = { kind: "query", query: rawValue };
+      } else if (key === "range") {
+        target = rangeTarget(ctx, rawValue) ?? target;
       }
 
-      args[key] = coerceArgValue(rawValue);
+      appendArg(args, key, coerceArgValue(rawValue));
       continue;
     }
 
@@ -124,6 +128,39 @@ export function parseSlash(input: string, ctx: EditorContext): SlashInvocation {
     freeText: freeTextTokens.length > 0 ? freeTextTokens.join(" ") : undefined,
     raw
   };
+}
+
+function appendArg(args: Record<string, SlashArg>, key: string, value: SlashArgValue): void {
+  const current = args[key];
+  if (current === undefined) {
+    args[key] = value;
+    return;
+  }
+
+  args[key] = Array.isArray(current) ? [...current, value] : [current, value];
+}
+
+function appendDocTarget(target: SlashTarget | undefined, docId: string): SlashTarget {
+  if (target?.kind === "doc") {
+    return { kind: "docs", docIds: [target.docId, docId] };
+  }
+
+  if (target?.kind === "docs") {
+    return { kind: "docs", docIds: [...target.docIds, docId] };
+  }
+
+  return { kind: "doc", docId };
+}
+
+function rangeTarget(ctx: EditorContext, value: string): SlashTarget | undefined {
+  const [fromText, toText, ...rest] = value.split(":");
+  const from = Number(fromText);
+  const to = Number(toText);
+  if (rest.length > 0 || !ctx.docId || !Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from > to) {
+    return undefined;
+  }
+
+  return { kind: "selection", docId: ctx.docId, from, to };
 }
 
 function tokenize(input: string): Token[] {
