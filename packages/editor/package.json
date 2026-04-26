@@ -16,6 +16,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.1",
     "@weki/core": "workspace:*"
   },
   "devDependencies": {
