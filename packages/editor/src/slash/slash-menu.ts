@@ -3,6 +3,8 @@ import type { Extension } from "@codemirror/state";
 import {
   getSlashCommand,
   slashCommandCatalog,
+  type SlashCommandArgumentDefinition,
+  type SlashCommandArgumentValueDefinition,
   type SlashCommandDefinition,
   type SlashInvocation
 } from "@weki/core";
@@ -20,6 +22,18 @@ export interface SlashMenuItemView {
   help: string;
   command: SlashCommandDefinition;
   examples: SlashMenuExampleView[];
+}
+
+export interface SlashArgumentItemView {
+  label: string;
+  detail: string;
+  argument: SlashCommandArgumentDefinition;
+}
+
+export interface SlashArgumentValueItemView {
+  label: string;
+  detail: string;
+  value: SlashCommandArgumentValueDefinition;
 }
 
 export interface SlashInvocationView {
@@ -58,6 +72,42 @@ export function renderSlashMenuItems(query = "", translate: Translate = identity
     });
 }
 
+export function renderSlashArgumentItems(
+  verb: string,
+  query = "",
+  translate: Translate = identityTranslate
+): SlashArgumentItemView[] {
+  const command = getSlashCommand(verb);
+  const normalized = query.replace(/^--/, "").toLowerCase();
+
+  return (command?.args ?? [])
+    .filter((arg) => arg.name.toLowerCase().startsWith(normalized))
+    .map((argument) => ({
+      label: `--${argument.name}`,
+      detail: translate(argument.labelKey),
+      argument
+    }));
+}
+
+export function renderSlashArgumentValueItems(
+  verb: string,
+  argName: string,
+  query = "",
+  translate: Translate = identityTranslate
+): SlashArgumentValueItemView[] {
+  const command = getSlashCommand(verb);
+  const argument = command?.args?.find((item) => item.name === argName);
+  const normalized = query.toLowerCase();
+
+  return (argument?.values ?? [])
+    .filter((value) => value.value.toLowerCase().startsWith(normalized))
+    .map((value) => ({
+      label: value.value,
+      detail: translate(value.labelKey),
+      value
+    }));
+}
+
 export function renderSlashInvocation(invocation: SlashInvocation, translate: Translate = identityTranslate): SlashInvocationView {
   const command = getSlashCommand(invocation.verb);
   const args = Object.entries(invocation.args).map(([key, value]) => `--${key} ${String(value)}`);
@@ -87,6 +137,33 @@ export function wekiSlashMenu(options: WekiSlashMenuOptions = {}): Extension {
 export function slashCompletionSource(context: CompletionContext, translate: Translate = identityTranslate): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const beforeCursor = context.state.sliceDoc(line.from, context.pos);
+  const argNameContext = getArgumentNameCompletionContext(beforeCursor, context.pos);
+  if (argNameContext) {
+    return {
+      from: argNameContext.from,
+      options: renderSlashArgumentItems(argNameContext.verb, argNameContext.query, translate).map(toArgumentCompletion),
+      validFor: /^--[A-Za-z0-9_-]*$/
+    };
+  }
+
+  const argValueContext = getArgumentValueCompletionContext(beforeCursor, context.pos);
+  if (argValueContext) {
+    const options = renderSlashArgumentValueItems(
+      argValueContext.verb,
+      argValueContext.argName,
+      argValueContext.query,
+      translate
+    ).map(toArgumentValueCompletion);
+
+    if (options.length > 0) {
+      return {
+        from: argValueContext.from,
+        options,
+        validFor: /^[^\s]*$/
+      };
+    }
+  }
+
   const match = /(?:^|\s)(\/[A-Za-z0-9_-]*)$/.exec(beforeCursor);
 
   if (!match) {
@@ -104,6 +181,26 @@ export function slashCompletionSource(context: CompletionContext, translate: Tra
   };
 }
 
+function toArgumentCompletion(item: SlashArgumentItemView): Completion {
+  return {
+    label: item.label,
+    type: "property",
+    detail: item.detail,
+    info: item.detail,
+    apply: `${item.label} `
+  };
+}
+
+function toArgumentValueCompletion(item: SlashArgumentValueItemView): Completion {
+  return {
+    label: item.label,
+    type: "constant",
+    detail: item.detail,
+    info: item.detail,
+    apply: item.label
+  };
+}
+
 function toCompletion(item: SlashMenuItemView): Completion {
   return {
     label: item.label,
@@ -111,6 +208,41 @@ function toCompletion(item: SlashMenuItemView): Completion {
     detail: item.detail,
     info: item.help,
     apply: item.label
+  };
+}
+
+function getArgumentNameCompletionContext(
+  beforeCursor: string,
+  cursorPos: number
+): { verb: string; query: string; from: number } | null {
+  const match = /(?:^|\s)\/([A-Za-z0-9_-]+)(?:\s+.*?)?\s+(--[A-Za-z0-9_-]*)$/.exec(beforeCursor);
+  if (!match) {
+    return null;
+  }
+
+  const query = match[2];
+  return {
+    verb: match[1].toLowerCase(),
+    query,
+    from: cursorPos - query.length
+  };
+}
+
+function getArgumentValueCompletionContext(
+  beforeCursor: string,
+  cursorPos: number
+): { verb: string; argName: string; query: string; from: number } | null {
+  const match = /(?:^|\s)\/([A-Za-z0-9_-]+)(?:\s+.*?)?\s+--([A-Za-z0-9_-]+)\s+([^\s]*)$/.exec(beforeCursor);
+  if (!match) {
+    return null;
+  }
+
+  const query = match[3];
+  return {
+    verb: match[1].toLowerCase(),
+    argName: match[2],
+    query,
+    from: cursorPos - query.length
   };
 }
 

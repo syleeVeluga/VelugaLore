@@ -1,14 +1,24 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { parseSlash } from "@weki/core";
-import { renderSlashInvocation, renderSlashMenuItems, slashCompletionSource } from "./slash-menu.js";
+import {
+  renderSlashArgumentItems,
+  renderSlashArgumentValueItems,
+  renderSlashInvocation,
+  renderSlashMenuItems,
+  slashCompletionSource
+} from "./slash-menu.js";
 
 const translate = (key: string): string =>
   ({
     "slash.command.group.core": "Core",
+    "slash.arg.audience": "Audience",
+    "slash.arg.tone": "Tone",
+    "slash.arg.value.tone.executive": "Executive tone",
     "slash.draft.example.empty": "Create an outline and first draft for an empty page.",
     "slash.draft.example.prompt": "Draft from a prompt and audience hint.",
-    "slash.draft.summary": "Start a draft or expand the selected passage."
+    "slash.draft.summary": "Start a draft or expand the selected passage.",
+    "slash.improve.summary": "Rewrite selected prose with three alternatives."
   })[key] ?? key;
 
 describe("slash menu rendering", () => {
@@ -45,6 +55,23 @@ describe("slash menu rendering", () => {
     });
   });
 
+  it("renders command argument help for /draft", () => {
+    expect(renderSlashArgumentItems("draft", "--au", translate)).toEqual([
+      {
+        label: "--audience",
+        detail: "Audience",
+        argument: { name: "audience", labelKey: "slash.arg.audience" }
+      }
+    ]);
+  });
+
+  it("renders command argument values for /improve tone", () => {
+    expect(renderSlashArgumentValueItems("improve", "tone", "exec", translate)[0]).toMatchObject({
+      label: "executive",
+      detail: "Executive tone"
+    });
+  });
+
   it("exposes CodeMirror completion options for slash commands", () => {
     const state = EditorState.create({ doc: "/dra" });
     const context = {
@@ -61,6 +88,42 @@ describe("slash menu rendering", () => {
       apply: "/draft"
     });
     expect(result?.options[0]?.info).toContain("Create an outline");
+  });
+
+  it("exposes CodeMirror completion options for slash command arguments", () => {
+    const state = EditorState.create({ doc: "/draft --au" });
+    const context = {
+      state,
+      pos: 11,
+      explicit: true
+    };
+
+    const result = slashCompletionSource(context as never, translate);
+
+    expect(result?.from).toBe(7);
+    expect(result?.options[0]).toMatchObject({
+      label: "--audience",
+      apply: "--audience "
+    });
+    expect(result?.options[0]?.info).toBe("Audience");
+  });
+
+  it("exposes CodeMirror completion options for known slash argument values", () => {
+    const state = EditorState.create({ doc: "/improve --tone e" });
+    const context = {
+      state,
+      pos: 17,
+      explicit: true
+    };
+
+    const result = slashCompletionSource(context as never, translate);
+
+    expect(result?.from).toBe(16);
+    expect(result?.options[0]).toMatchObject({
+      label: "executive",
+      apply: "executive"
+    });
+    expect(result?.options[0]?.info).toBe("Executive tone");
   });
 
   it("opens the slash menu at the bare trigger without explicit completion", () => {

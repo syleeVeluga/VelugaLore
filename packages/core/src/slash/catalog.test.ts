@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { slashCommandCatalog } from "./catalog.js";
+import type { SlashCommandDefinition } from "./types.js";
 
 describe("slashCommandCatalog", () => {
   it("provides one-line help and examples for every command", () => {
@@ -15,9 +16,13 @@ describe("slashCommandCatalog", () => {
   it("has i18n entries for command summaries and examples", () => {
     const en = JSON.parse(readFileSync(path.resolve("src/i18n/en.json"), "utf8")) as Record<string, string>;
     const ko = JSON.parse(readFileSync(path.resolve("src/i18n/ko.json"), "utf8")) as Record<string, string>;
-    const keys = slashCommandCatalog.flatMap((command) => [
+    const keys = (slashCommandCatalog as readonly SlashCommandDefinition[]).flatMap((command) => [
       command.summaryKey,
-      ...command.examples.map((example) => example.labelKey)
+      ...command.examples.map((example) => example.labelKey),
+      ...(command.args ?? []).flatMap((arg) => [
+        arg.labelKey,
+        ...(arg.values ?? []).map((value) => value.labelKey)
+      ])
     ]);
 
     for (const key of keys) {

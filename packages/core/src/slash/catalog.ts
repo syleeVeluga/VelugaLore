@@ -1,5 +1,12 @@
 import type { SlashCommandDefinition } from "./types.js";
 
+const toneValues = [
+  { value: "executive", labelKey: "slash.arg.value.tone.executive" },
+  { value: "casual", labelKey: "slash.arg.value.tone.casual" },
+  { value: "formal", labelKey: "slash.arg.value.tone.formal" },
+  { value: "legal", labelKey: "slash.arg.value.tone.legal" }
+] as const;
+
 export const slashCommandCatalog = [
   {
     verb: "draft",
@@ -10,6 +17,7 @@ export const slashCommandCatalog = [
       { input: "/draft", labelKey: "slash.draft.example.empty" },
       { input: "/draft R&D proposal in five bullets --audience executives", labelKey: "slash.draft.example.prompt" }
     ],
+    args: [{ name: "audience", labelKey: "slash.arg.audience" }],
     selection: "optional",
     multiDoc: false,
     defaultApplyMode: "dry-run preview"
@@ -22,6 +30,10 @@ export const slashCommandCatalog = [
     examples: [
       { input: "/improve", labelKey: "slash.improve.example.selection" },
       { input: "/improve --tone executive --maxWords 120", labelKey: "slash.improve.example.tone" }
+    ],
+    args: [
+      { name: "tone", labelKey: "slash.arg.tone", values: toneValues },
+      { name: "maxWords", labelKey: "slash.arg.maxWords" }
     ],
     selection: "required",
     multiDoc: false,
@@ -58,6 +70,10 @@ export const slashCommandCatalog = [
       { input: "/curate scope:wiki/policies", labelKey: "slash.curate.example.scope" },
       { input: "/curate --since 7d --threshold 30", labelKey: "slash.curate.example.since" }
     ],
+    args: [
+      { name: "since", labelKey: "slash.arg.since" },
+      { name: "threshold", labelKey: "slash.arg.threshold" }
+    ],
     selection: "none",
     multiDoc: true,
     defaultApplyMode: "preview-then-approval"
@@ -72,6 +88,11 @@ export const slashCommandCatalog = [
         labelKey: "slash.import.example.zip"
       }
     ],
+    args: [
+      { name: "target", labelKey: "slash.arg.target" },
+      { name: "preserve-tree", labelKey: "slash.arg.preserveTree" },
+      { name: "remap-links", labelKey: "slash.arg.remapLinks" }
+    ],
     selection: "none",
     multiDoc: true,
     defaultApplyMode: "confirm-then-apply"
@@ -81,6 +102,12 @@ export const slashCommandCatalog = [
     group: "system",
     summaryKey: "slash.find.summary",
     examples: [{ input: "/find exact phrase --mode literal --topk 10", labelKey: "slash.find.example.literal" }],
+    args: [
+      { name: "mode", labelKey: "slash.arg.mode" },
+      { name: "topk", labelKey: "slash.arg.topk" },
+      { name: "kind", labelKey: "slash.arg.kind" },
+      { name: "since", labelKey: "slash.arg.since" }
+    ],
     selection: "none",
     multiDoc: true,
     defaultApplyMode: "ranked panel"
@@ -90,6 +117,11 @@ export const slashCommandCatalog = [
     group: "system",
     summaryKey: "slash.grep.summary",
     examples: [{ input: "/grep '\\[\\[[^\\]]*\\]\\]' --output content", labelKey: "slash.grep.example.links" }],
+    args: [
+      { name: "output", labelKey: "slash.arg.output" },
+      { name: "context", labelKey: "slash.arg.context" },
+      { name: "kind", labelKey: "slash.arg.kind" }
+    ],
     selection: "none",
     multiDoc: true,
     defaultApplyMode: "report only"

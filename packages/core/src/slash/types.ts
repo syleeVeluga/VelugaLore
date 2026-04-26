@@ -33,12 +33,24 @@ export interface SlashCommandExample {
   labelKey: string;
 }
 
+export interface SlashCommandArgumentValueDefinition {
+  value: string;
+  labelKey: string;
+}
+
+export interface SlashCommandArgumentDefinition {
+  name: string;
+  labelKey: string;
+  values?: readonly SlashCommandArgumentValueDefinition[];
+}
+
 export interface SlashCommandDefinition {
   verb: string;
   group: SlashCommandGroup;
   agent?: string;
   summaryKey: string;
   examples: readonly SlashCommandExample[];
+  args?: readonly SlashCommandArgumentDefinition[];
   selection: "required" | "optional" | "none";
   multiDoc: boolean;
   defaultApplyMode: string;
