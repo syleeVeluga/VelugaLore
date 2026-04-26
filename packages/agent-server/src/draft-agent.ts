@@ -121,10 +121,10 @@ function parseDraftInvocation(
 
 function argToString(value: SlashArg | undefined): string | undefined {
   const first = Array.isArray(value) ? value[0] : value;
-  if (first === undefined) {
+  if (typeof first !== "string") {
     return undefined;
   }
-  return String(first);
+  return first;
 }
 
 function stripDraftVerb(input: string): string {

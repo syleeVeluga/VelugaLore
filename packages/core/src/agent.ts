@@ -53,13 +53,13 @@ export const draftPatchSchema = patchSchema.extend({
   outputSchema: z.literal("DraftPatch").default("DraftPatch"),
   agentId: z.literal("draft").default("draft"),
   ops: z.array(draftPatchOpSchema).min(1),
-  assumptions: z.array(z.string()).default([])
+  assumptions: z.array(z.string()).default(() => [])
 });
 
 export const readOnlyAnswerSchema = z.object({
   kind: z.literal("ReadOnlyAnswer"),
   answer: z.string(),
-  sources: z.array(z.unknown()).default([])
+  sources: z.array(z.unknown()).default(() => [])
 });
 
 export const agentOutputSchema = z.discriminatedUnion("kind", [patchSchema, readOnlyAnswerSchema]);
