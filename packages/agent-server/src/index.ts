@@ -2,6 +2,7 @@ import { corePackage } from "@weki/core";
 import { dbPackage } from "@weki/db";
 import { markdownLspPackage } from "@weki/markdown-lsp";
 export * from "./daemon.js";
+export * from "./draft-agent.js";
 export * from "./run-store.js";
 export * from "./tool-allowlist.js";
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
-import { createAgentDaemon, InMemoryAgentRunStore, SqlAgentRunStore, ToolRuntime } from "./index.js";
+import { createAgentDaemon, InMemoryAgentRunStore, runDraftAgent, SqlAgentRunStore, ToolRuntime } from "./index.js";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 
@@ -75,12 +75,74 @@ describe("S-05 agent daemon", () => {
     });
   });
 
+  it("runs DraftAgent for an empty document and returns a DraftPatch", async () => {
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore() });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const created = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        agentId: "draft",
+        input: "/draft onboarding guide --audience editors",
+        context: { docId: "doc-1", body: "" }
+      })
+    });
+    const run = (await created.json()) as {
+      status: string;
+      patch: { outputSchema: string; ops: Array<{ kind: string; sectionHeading?: string }> };
+    };
+
+    expect(created.status).toBe(201);
+    expect(run.status).toBe("succeeded");
+    expect(run.patch.outputSchema).toBe("DraftPatch");
+    expect(run.patch.ops[0]?.kind).toBe("insert_section_tree");
+    expect(run.patch.ops.filter((op) => op.kind === "append_paragraph")).toHaveLength(5);
+  });
+
+  it("runs DraftAgent for a selection and proposes one replace_range op", () => {
+    const patch = runDraftAgent({
+      workspaceId,
+      agentId: "draft",
+      input: "/draft launch note --audience executives",
+      context: {
+        docId: "doc-1",
+        body: "Intro\nShort note.\nEnd",
+        selection: { from: 6, to: 17 }
+      }
+    });
+
+    expect(patch.outputSchema).toBe("DraftPatch");
+    expect(patch.ops).toHaveLength(1);
+    expect(patch.ops[0]).toMatchObject({
+      kind: "replace_range",
+      docId: "doc-1",
+      from: 6,
+      to: 17
+    });
+    expect(patch.ops[0]?.kind === "replace_range" ? patch.ops[0].text : "").toContain("executives");
+  });
+
   it("fails tool calls closed when an agent has no explicit allowlist entry", async () => {
     const runtime = new ToolRuntime({
       read_doc: () => ({ body: "secret" })
     });
 
     await expect(runtime.call("echo", "read_doc", {})).rejects.toMatchObject({
+      code: "TOOL_NOT_ALLOWED"
+    });
+  });
+
+  it("allows DraftAgent to call its read-only context tools only", async () => {
+    const runtime = new ToolRuntime({
+      read_doc: () => ({ body: "workspace context" }),
+      web_fetch: () => ({ body: "external" })
+    });
+
+    await expect(runtime.call("draft", "read_doc", {})).resolves.toEqual({ body: "workspace context" });
+    await expect(runtime.call("draft", "web_fetch", {})).rejects.toMatchObject({
       code: "TOOL_NOT_ALLOWED"
     });
   });

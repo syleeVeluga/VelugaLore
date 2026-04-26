@@ -13,6 +13,7 @@ export class ToolNotAllowedError extends Error {
 export type ToolHandler = (input: unknown) => Promise<unknown> | unknown;
 
 export const agentToolAllowlists = {
+  draft: ["read_doc", "read_neighbors", "search_workspace", "read_style_guide", "read_glossary"],
   echo: []
 } as const satisfies Record<string, readonly string[]>;
 
