@@ -1,0 +1,9 @@
+{
+  "name": "@weki/agent-runtime-py",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "python -m compileall -q src tests",
+    "test": "python -c \"import pathlib, sys, unittest; sys.path.insert(0, str(pathlib.Path('src').resolve())); result = unittest.TextTestRunner().run(unittest.defaultTestLoader.discover('tests')); raise SystemExit(0 if result.wasSuccessful() else 1)\""
+  }
+}

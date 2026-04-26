@@ -1,0 +1,24 @@
+{
+  "name": "weki",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.8.1",
+  "engines": {
+    "node": ">=20.11",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "ci": "pnpm lint:deps && pnpm build",
+    "dev": "turbo run dev",
+    "lint:deps": "tsx tools/lint-deps.ts",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.8"
+  }
+}
