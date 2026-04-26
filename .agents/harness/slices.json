@@ -76,6 +76,25 @@
       "acceptance": ["A16", "P2"]
     },
     {
+      "id": "S-08.5",
+      "title": "Desktop shell catch-up: first runnable desktop build",
+      "milestone": "M2",
+      "primary_agents": ["editor-product-engineer", "foundation-architect"],
+      "prd": ["PRD/04-architecture.md", "PRD/07-editor-ui.md", "PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md"],
+      "dod": [
+        "Tauri 2 shell and React renderer scaffolded under packages/desktop with src-tauri",
+        "pnpm --filter @weki/desktop dev opens an empty Tauri window on macOS or Windows",
+        "Opening an empty workspace creates .weki/ and spawns agent-server as a sub-process",
+        "End-to-end /draft flow from slash menu to approved patch to disk completes by hand (PRD §13.7.3 nine steps)",
+        "Two-phase write parity holds: approved patch writes to disk with matching body_sha256",
+        "External edits propagate to renderer within five seconds via S-03 watcher",
+        "All eight IPC commands and events from PRD §13.7.4 are registered and tested",
+        "Rust dependency whitelist from PRD §9.3 is respected and pnpm lint:deps passes",
+        "packages/desktop/README.md documents prerequisites, dev run, and five troubleshooting entries"
+      ],
+      "acceptance": ["A4", "U1", "U2"]
+    },
+    {
       "id": "S-09a",
       "title": "IngestAgent and import system operation",
       "milestone": "M2",
