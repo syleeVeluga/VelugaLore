@@ -213,6 +213,38 @@ CREATE TABLE patches (
   decided_at timestamptz
 );
 
+CREATE OR REPLACE FUNCTION patches_state_machine_update() RETURNS trigger AS $$
+BEGIN
+  IF OLD.status <> NEW.status THEN
+    IF OLD.status <> 'proposed' THEN
+      RAISE EXCEPTION 'patch decision is terminal';
+    END IF;
+
+    IF NEW.status NOT IN ('applied','rejected','superseded') THEN
+      RAISE EXCEPTION 'invalid patch status transition';
+    END IF;
+
+    IF NEW.decided_by IS NULL OR NEW.decided_at IS NULL THEN
+      RAISE EXCEPTION 'patch decisions require decided_by and decided_at';
+    END IF;
+  END IF;
+
+  IF OLD.status <> 'proposed'
+    AND (OLD.ops IS DISTINCT FROM NEW.ops
+      OR OLD.preview_html IS DISTINCT FROM NEW.preview_html
+      OR OLD.decided_by IS DISTINCT FROM NEW.decided_by
+      OR OLD.decided_at IS DISTINCT FROM NEW.decided_at) THEN
+    RAISE EXCEPTION 'decided patches are immutable';
+  END IF;
+
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_patches_state_machine_update
+  BEFORE UPDATE ON patches
+  FOR EACH ROW EXECUTE FUNCTION patches_state_machine_update();
+
 CREATE TABLE audit_log (
   id bigserial PRIMARY KEY,
   workspace_id uuid REFERENCES workspaces(id),
@@ -224,6 +256,20 @@ CREATE TABLE audit_log (
   payload jsonb,
   at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE OR REPLACE FUNCTION audit_log_no_update_delete() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_log is append-only';
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_audit_log_no_update
+  BEFORE UPDATE ON audit_log
+  FOR EACH ROW EXECUTE FUNCTION audit_log_no_update_delete();
+
+CREATE TRIGGER tg_audit_log_no_delete
+  BEFORE DELETE ON audit_log
+  FOR EACH ROW EXECUTE FUNCTION audit_log_no_update_delete();
 
 CREATE TABLE triples (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -340,6 +386,68 @@ BEGIN
 
   INSERT INTO doc_versions (doc_id, rev, body, body_sha256, frontmatter, source)
     VALUES (target_doc_id, previous_rev + 1, new_body, digest(new_body, 'sha256'), previous_frontmatter, actor);
+
+  RETURN true;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+CREATE OR REPLACE FUNCTION app_decide_patch(
+  target_patch_id uuid,
+  decision text,
+  rationale text DEFAULT NULL
+) RETURNS boolean AS $$
+DECLARE
+  target_workspace uuid;
+  previous_status text;
+BEGIN
+  IF decision NOT IN ('applied','rejected','superseded') THEN
+    RAISE EXCEPTION 'invalid patch decision';
+  END IF;
+
+  SELECT ar.workspace_id, p.status
+    INTO target_workspace, previous_status
+    FROM patches p
+    JOIN agent_runs ar ON ar.id = p.agent_run_id
+    WHERE p.id = target_patch_id;
+
+  IF target_workspace IS NULL THEN
+    RETURN false;
+  END IF;
+
+  IF NOT app_can_write_workspace(target_workspace) THEN
+    PERFORM app_audit_write_denied(target_workspace, 'patch', target_patch_id::text, 'patches.decide');
+    RETURN false;
+  END IF;
+
+  IF previous_status <> 'proposed' THEN
+    RETURN false;
+  END IF;
+
+  UPDATE patches
+    SET status = decision,
+        decided_by = app_user_id(),
+        decided_at = now()
+    WHERE id = target_patch_id
+      AND status = 'proposed';
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO audit_log (workspace_id, actor_kind, actor_id, action, target_kind, target_id, payload)
+  VALUES (
+    target_workspace,
+    'user',
+    coalesce(app_user_id()::text, 'anonymous'),
+    CASE decision
+      WHEN 'applied' THEN 'patch.applied'
+      WHEN 'rejected' THEN 'patch.rejected'
+      ELSE 'patch.superseded'
+    END,
+    'patch',
+    target_patch_id::text,
+    jsonb_build_object('decision', decision, 'rationale', rationale)
+  );
 
   RETURN true;
 END

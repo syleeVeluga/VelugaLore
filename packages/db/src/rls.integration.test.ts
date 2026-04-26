@@ -29,6 +29,7 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     doc: "00000000-0000-0000-0000-000000000020",
     otherDoc: "00000000-0000-0000-0000-000000000021",
     run: "00000000-0000-0000-0000-000000000022",
+    patch: "00000000-0000-0000-0000-000000000023",
     raw: "00000000-0000-0000-0000-000000000030"
   };
 
@@ -60,6 +61,8 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
         ($12, $11, 'wiki/other.md', 'Other', 'concept', 'other', digest('other', 'sha256'), $4);
       INSERT INTO agent_runs (id, workspace_id, agent_id, invoked_by, invocation, status)
         VALUES ($13, $7, 'draft', $4, '{}'::jsonb, 'queued');
+      INSERT INTO patches (id, agent_run_id, ops, preview_html, status)
+        VALUES ($14, $13, '[]'::jsonb, '<div>preview</div>', 'proposed');
       INSERT INTO raw_sources (id, workspace_id, uri, mime, sha256, bytes, imported_by) VALUES
         ($9, $7, 'file://raw.md', 'text/markdown', digest('raw', 'sha256'), 3, $4);
       `,
@@ -76,7 +79,8 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
         ids.otherOrg,
         ids.otherWorkspace,
         ids.otherDoc,
-        ids.run
+        ids.run,
+        ids.patch
       ]
     );
     await query(client, "ALTER TABLE documents FORCE ROW LEVEL SECURITY;");
@@ -148,6 +152,22 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     await expect(query(client, "UPDATE agent_runs SET invocation = '{\"changed\":true}'::jsonb WHERE id = $1", [ids.run])).rejects.toThrow(
       /append-only/
     );
+    await query(client, "ROLLBACK");
+  });
+
+  it("persists patch decisions and writes an audit row", async () => {
+    await query(client, "BEGIN");
+    await setLocalConfig(client, "app.user_id", ids.editor);
+    await query(client, "SET LOCAL row_security = on");
+
+    const decided = await query(client, "SELECT app_decide_patch($1, 'applied', 'looks good') AS decided", [ids.patch]);
+    expect(decided.rows[0]?.decided).toBe(true);
+
+    const patch = await query(client, "SELECT status, decided_by FROM patches WHERE id = $1", [ids.patch]);
+    expect(patch.rows[0]).toMatchObject({ status: "applied", decided_by: ids.editor });
+
+    const audit = await query(client, "SELECT action, target_id FROM audit_log WHERE target_id = $1", [ids.patch]);
+    expect(audit.rows[0]).toMatchObject({ action: "patch.applied", target_id: ids.patch });
     await query(client, "ROLLBACK");
   });
 });

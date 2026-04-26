@@ -1,25 +1,31 @@
 import {
   agentRunEventSchema,
   agentRunInvocationSchema,
+  patchStatusSchema,
+  renderPatchPreview,
   type AgentOutput,
   type AgentRunEvent,
   type AgentRunInvocation
 } from "@weki/core";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+import { InMemoryPatchApprovalStore, type ApprovalDecision, type PatchApprovalStore, type StoredPatchApproval } from "./approval-store.js";
 import { runDraftAgent } from "./draft-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" } as const;
+const approvalDecisionSchema = z.enum(["applied", "rejected", "superseded"]);
 
 export type AgentDaemonOptions = {
   store?: AgentRunStore;
+  approvalStore?: PatchApprovalStore;
   toolRuntime?: ToolRuntime;
 };
 
 export type AgentDaemon = {
   store: AgentRunStore;
+  approvalStore: PatchApprovalStore;
   server: http.Server;
   runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
   runEcho(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
@@ -49,6 +55,19 @@ function serializeRun(run: StoredAgentRun): Record<string, unknown> {
   };
 }
 
+function serializePatch(patch: StoredPatchApproval): Record<string, unknown> {
+  return {
+    id: patch.id,
+    agentRunId: patch.agentRunId,
+    workspaceId: patch.workspaceId,
+    ops: patch.ops,
+    previewHtml: patch.previewHtml,
+    status: patch.status,
+    decidedBy: patch.decidedBy,
+    decidedAt: patch.decidedAt?.toISOString()
+  };
+}
+
 async function readBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
@@ -74,6 +93,7 @@ function echoOutput(invocation: AgentRunInvocation): AgentOutput {
 
 export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon {
   const store = options.store ?? new InMemoryAgentRunStore();
+  const approvalStore = options.approvalStore ?? new InMemoryPatchApprovalStore();
   const toolRuntime = options.toolRuntime ?? new ToolRuntime({});
 
   async function runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun> {
@@ -81,10 +101,13 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
     try {
       if (parsedInvocation.agentId === "draft") {
-        return await store.create(parsedInvocation, {
+        const patch = withPreviewHtml(runDraftAgent(parsedInvocation), parsedInvocation);
+        const run = await store.create(parsedInvocation, {
           status: "succeeded",
-          patch: runDraftAgent(parsedInvocation)
+          patch
         });
+        await approvalStore.propose({ run, patch });
+        return run;
       }
 
       if (parsedInvocation.agentId !== "echo") {
@@ -125,6 +148,14 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
         return;
       }
 
+      if (method === "GET" && url.pathname === "/patches") {
+        const requestedStatus = url.searchParams.get("status");
+        const status = requestedStatus ? patchStatusSchema.parse(requestedStatus) : undefined;
+        const patches = await approvalStore.list(status);
+        sendJson(response, 200, { patches: patches.map(serializePatch) });
+        return;
+      }
+
       if (method === "POST" && url.pathname === "/runs") {
         const body = agentRunInvocationSchema.parse(await readBody(request));
         const run = await runAgent(body);
@@ -140,6 +171,24 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
           return;
         }
         sendJson(response, 200, serializeRun(run));
+        return;
+      }
+
+      const patchDecisionMatch = url.pathname.match(/^\/patches\/([0-9a-fA-F-]{36})\/decision$/);
+      if (method === "POST" && patchDecisionMatch) {
+        const body = (await readBody(request)) as { decision?: ApprovalDecision; decidedBy?: string; rationale?: string };
+        if (!body.decision || !body.decidedBy) {
+          sendJson(response, 400, { error: "INVALID_PATCH_DECISION" });
+          return;
+        }
+        const decision = approvalDecisionSchema.parse(body.decision);
+        const patch = await approvalStore.decide({
+          id: patchDecisionMatch[1],
+          decision,
+          decidedBy: body.decidedBy,
+          rationale: body.rationale
+        });
+        sendJson(response, 200, serializePatch(patch));
         return;
       }
 
@@ -168,5 +217,28 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     }
   });
 
-  return { store, server, runAgent, runEcho };
+  return { store, approvalStore, server, runAgent, runEcho };
+}
+
+function withPreviewHtml<T extends Extract<AgentOutput, { kind: "Patch" }>>(
+  patch: T,
+  invocation: AgentRunInvocation
+): T {
+  const body = invocation.context?.body;
+  const docId = invocation.context?.docId ?? invocation.context?.selection?.docId;
+  if (body === undefined || !docId) {
+    return patch;
+  }
+
+  try {
+    return {
+      ...patch,
+      previewHtml: renderPatchPreview({
+        document: { id: docId, body },
+        ops: patch.ops as never
+      }).previewHtml
+    };
+  } catch {
+    return patch;
+  }
 }
