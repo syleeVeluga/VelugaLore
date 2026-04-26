@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
-import { createAgentDaemon, InMemoryAgentRunStore, runDraftAgent, SqlAgentRunStore, ToolRuntime } from "./index.js";
+import {
+  createAgentDaemon,
+  InMemoryAgentRunStore,
+  runDraftAgent,
+  SqlAgentRunStore,
+  ToolRuntime,
+  type AgentRunStore,
+  type StoredAgentRun
+} from "./index.js";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 
@@ -208,6 +216,179 @@ describe("S-05 agent daemon", () => {
     expect(queries[0]?.sql).toContain("INSERT INTO agent_runs");
     expect(queries[0]?.sql).toContain("patch");
     expect(queries).toHaveLength(1);
+  });
+
+  it("returns 400 for malformed JSON request bodies", async () => {
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore() });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const response = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not json"
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: string };
+    expect(typeof body.error).toBe("string");
+    expect(body.error.length).toBeGreaterThan(0);
+    expect(body.error).not.toBe("INTERNAL_ERROR");
+  });
+
+  it("returns 400 for schema-invalid run invocations", async () => {
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore() });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const response = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: "not-a-uuid", agentId: "echo" })
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: string };
+    expect(typeof body.error).toBe("string");
+    expect(body.error).not.toBe("INTERNAL_ERROR");
+    expect(body.error.toLowerCase()).toContain("uuid");
+  });
+
+  it("returns 500 INTERNAL_ERROR when an unexpected store failure escapes", async () => {
+    const failingStore: AgentRunStore = {
+      async create(): Promise<StoredAgentRun> {
+        throw new Error("create not used");
+      },
+      async finish(): Promise<StoredAgentRun> {
+        throw new Error("finish not used");
+      },
+      async get(): Promise<StoredAgentRun | undefined> {
+        throw new Error("kaboom");
+      }
+    };
+    const daemon = createAgentDaemon({ store: failingStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const response = await fetch(`${baseUrl}/runs/22222222-2222-4222-8222-222222222222`);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "INTERNAL_ERROR" });
+  });
+
+  it("clears patch and sets error on SqlAgentRunStore.finish for failed transitions", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    const id = "33333333-3333-4333-8333-333333333333";
+    const store = new SqlAgentRunStore({
+      async query<Row>(sql: string, values?: unknown[]) {
+        queries.push({ sql, values });
+        return {
+          rows: [
+            {
+              id,
+              workspace_id: workspaceId,
+              agent_id: "echo",
+              invoked_by: null,
+              invocation: { workspaceId, agentId: "echo", input: "" },
+              status: "failed" as const,
+              patch: null,
+              started_at: new Date("2026-04-26T00:00:00.000Z"),
+              finished_at: new Date("2026-04-26T00:00:01.000Z"),
+              error: "BOOM",
+              parent_run_id: null,
+              model: null,
+              cost_tokens: null,
+              cost_usd_microcents: null
+            }
+          ] as Row[]
+        };
+      }
+    });
+
+    const finished = await store.finish({ id, status: "failed", error: "BOOM" });
+
+    expect(finished.status).toBe("failed");
+    expect(finished.patch).toBeUndefined();
+    expect(finished.error).toBe("BOOM");
+    const update = queries[0];
+    expect(update?.sql).toContain("UPDATE agent_runs");
+    expect(update?.sql).toContain("patch = CASE WHEN $2 = 'failed' THEN NULL ELSE patch END");
+    expect(update?.values).toEqual([id, "failed", "BOOM"]);
+  });
+
+  it("clears error on SqlAgentRunStore.finish for succeeded transitions", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    const id = "44444444-4444-4444-8444-444444444444";
+    const store = new SqlAgentRunStore({
+      async query<Row>(sql: string, values?: unknown[]) {
+        queries.push({ sql, values });
+        return {
+          rows: [
+            {
+              id,
+              workspace_id: workspaceId,
+              agent_id: "echo",
+              invoked_by: null,
+              invocation: { workspaceId, agentId: "echo", input: "" },
+              status: "succeeded" as const,
+              patch: { kind: "ReadOnlyAnswer" as const, answer: "ok", sources: [] },
+              started_at: new Date("2026-04-26T00:00:00.000Z"),
+              finished_at: new Date("2026-04-26T00:00:01.000Z"),
+              error: null,
+              parent_run_id: null,
+              model: null,
+              cost_tokens: null,
+              cost_usd_microcents: null
+            }
+          ] as Row[]
+        };
+      }
+    });
+
+    const finished = await store.finish({ id, status: "succeeded" });
+
+    expect(finished.status).toBe("succeeded");
+    expect(finished.error).toBeUndefined();
+    const update = queries[0];
+    expect(update?.sql).toContain("error = $3");
+    expect(update?.values).toEqual([id, "succeeded", null]);
+  });
+
+  it("clears stale patch when InMemoryAgentRunStore transitions succeeded -> failed", async () => {
+    const store = new InMemoryAgentRunStore();
+    const created = await store.create(
+      { workspaceId, agentId: "echo", input: "ping" },
+      { status: "succeeded", patch: { kind: "ReadOnlyAnswer", answer: "ping", sources: [] } }
+    );
+    expect(created.patch).toBeDefined();
+
+    const finished = await store.finish({ id: created.id, status: "failed", error: "BOOM" });
+
+    expect(finished.status).toBe("failed");
+    expect(finished.patch).toBeUndefined();
+    expect(finished.error).toBe("BOOM");
+
+    const fetched = await store.get(created.id);
+    expect(fetched?.patch).toBeUndefined();
+    expect(fetched?.error).toBe("BOOM");
+  });
+
+  it("clears stale error when InMemoryAgentRunStore transitions failed -> succeeded", async () => {
+    const store = new InMemoryAgentRunStore();
+    const created = await store.create(
+      { workspaceId, agentId: "echo", input: "ping" },
+      { status: "failed", error: "BOOM" }
+    );
+    expect(created.error).toBe("BOOM");
+
+    const finished = await store.finish({ id: created.id, status: "succeeded" });
+
+    expect(finished.status).toBe("succeeded");
+    expect(finished.error).toBeUndefined();
+
+    const fetched = await store.get(created.id);
+    expect(fetched?.status).toBe("succeeded");
+    expect(fetched?.error).toBeUndefined();
   });
 
   it("does not declare an opencode dependency", async () => {
