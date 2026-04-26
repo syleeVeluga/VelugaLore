@@ -99,7 +99,7 @@ class AskAgentTest(unittest.TestCase):
         self.assertIn("[[Onboarding Policy]]", patch.answer.answer_md)
         self.assertEqual(patch.ops[0].kind, "create_doc")
         self.assertEqual(patch.ops[0].doc_kind, "qa")
-        self.assertEqual(patch.ops[0].path, "wiki/qa/onboarding-policy-definition.md")
+        self.assertEqual(patch.ops[0].path, "wiki/qa/onboarding-policy-definition-cba456b6.md")
         self.assertEqual(patch.ops[0].frontmatter.sources, ["doc-policy"])
 
     def test_rejects_qa_page_without_provenance_frontmatter(self) -> None:

@@ -44,7 +44,7 @@ GOLDEN_CASES = [
             },
         ),
         expected_source="doc-policy",
-        expected_path="wiki/qa/onboarding-policy-definition.md",
+        expected_path="wiki/qa/onboarding-policy-definition-cba456b6.md",
     ),
     AskEvalCase(
         id="ask-current-doc-source",
@@ -58,7 +58,7 @@ GOLDEN_CASES = [
             },
         ),
         expected_source="doc-retention",
-        expected_path="wiki/qa/retention-policy.md",
+        expected_path="wiki/qa/retention-policy-4f08a35c.md",
     ),
 ]
 

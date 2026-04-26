@@ -1,8 +1,8 @@
 """Structured output models for WekiDocs agents."""
 
-from typing import Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
 class AgentModel(BaseModel):
@@ -133,7 +133,7 @@ class CreateDocOp(AgentModel):
 class AskQaFrontmatter(AgentModel):
     kind: Literal["qa"]
     question: str = Field(min_length=1)
-    sources: list[str] = Field(min_length=1)
+    sources: list[Annotated[str, StringConstraints(min_length=1)]] = Field(min_length=1)
     confidence: float = Field(ge=0, le=1)
 
 

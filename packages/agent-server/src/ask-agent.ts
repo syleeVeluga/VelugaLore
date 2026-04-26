@@ -35,7 +35,7 @@ export function runAskAgent(invocation: AgentRunInvocation): AskPatch {
     ops: [
       {
         kind: "create_doc",
-        path: `wiki/qa/${slugify(title)}.md`,
+        path: `wiki/qa/${qaSlug(title, query)}.md`,
         title,
         docKind: "qa",
         body,
@@ -154,12 +154,16 @@ function summarizeQuestion(query: string): string {
   return truncate(query.replace(/[?!.]+$/g, "").trim(), 80) || "Workspace question";
 }
 
+function qaSlug(title: string, query: string): string {
+  const base = slugify(title) || "qa";
+  return `${base}-${hashString(query).padStart(8, "0").slice(0, 8)}`;
+}
+
 function slugify(value: string): string {
-  const ascii = value
+  return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return ascii || `qa-${hashString(value)}`;
 }
 
 function hashString(value: string): string {

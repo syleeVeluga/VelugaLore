@@ -501,7 +501,7 @@ describe("S-05 agent daemon", () => {
     expect(run.patch.answer.sources[0]?.docId).toBe("doc-policy");
     expect(run.patch.answer.answerMd).toContain("[[Onboarding Policy]]");
     expect(run.patch.ops[0]).toMatchObject({ kind: "create_doc", docKind: "qa" });
-    expect(run.patch.ops[0]?.path).toBe("wiki/qa/onboarding-policy-definition.md");
+    expect(run.patch.ops[0]?.path).toBe("wiki/qa/onboarding-policy-definition-0d705e3c.md");
     expect(run.patch.ops[0]?.frontmatter.sources).toEqual(["doc-policy"]);
 
     const queued = await approvalStore.list({ status: "proposed" });

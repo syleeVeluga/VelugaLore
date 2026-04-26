@@ -49,7 +49,7 @@ def create_ask_patch(request: AskRequest) -> AskPatch:
         ops=[
             {
                 "kind": "create_doc",
-                "path": f"wiki/qa/{_slug(title)}.md",
+                "path": f"wiki/qa/{_qa_slug(title, query)}.md",
                 "title": title,
                 "docKind": "qa",
                 "body": body,
@@ -143,9 +143,13 @@ def _title(query: str) -> str:
     return _truncate(re.sub(r"[?!.]+$", "", query).strip(), 80) or "Workspace question"
 
 
+def _qa_slug(title: str, query: str) -> str:
+    base = _slug(title) or "qa"
+    return f"{base}-{crc32(query.encode('utf-8')):08x}"
+
+
 def _slug(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    return slug or f"qa-{crc32(value.encode('utf-8')):x}"
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
 
 def _truncate(value: str, max_length: int) -> str:
