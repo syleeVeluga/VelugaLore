@@ -6,6 +6,7 @@ import {
   type AgentRunInvocation
 } from "@weki/core";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { runDraftAgent } from "./draft-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
 
@@ -19,6 +20,7 @@ export type AgentDaemonOptions = {
 export type AgentDaemon = {
   store: AgentRunStore;
   server: http.Server;
+  runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
   runEcho(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
 };
 
@@ -73,13 +75,21 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
   const store = options.store ?? new InMemoryAgentRunStore();
   const toolRuntime = options.toolRuntime ?? new ToolRuntime({});
 
-  async function runEcho(invocation: AgentRunInvocation): Promise<StoredAgentRun> {
+  async function runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun> {
     const parsedInvocation = agentRunInvocationSchema.parse(invocation);
-    if (parsedInvocation.agentId !== "echo") {
-      return store.create(parsedInvocation, { status: "failed", error: "UNKNOWN_AGENT" });
-    }
 
     try {
+      if (parsedInvocation.agentId === "draft") {
+        return await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch: runDraftAgent(parsedInvocation)
+        });
+      }
+
+      if (parsedInvocation.agentId !== "echo") {
+        return store.create(parsedInvocation, { status: "failed", error: "UNKNOWN_AGENT" });
+      }
+
       return await store.create(parsedInvocation, {
         status: "succeeded",
         patch: echoOutput(parsedInvocation)
@@ -87,6 +97,10 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     } catch (error) {
       return store.create(parsedInvocation, { status: "failed", error: error instanceof Error ? error.message : "RUN_FAILED" });
     }
+  }
+
+  async function runEcho(invocation: AgentRunInvocation): Promise<StoredAgentRun> {
+    return runAgent({ ...invocation, agentId: "echo" });
   }
 
   const server = http.createServer(async (request, response) => {
@@ -112,7 +126,7 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       if (method === "POST" && url.pathname === "/runs") {
         const body = agentRunInvocationSchema.parse(await readBody(request));
-        const run = await runEcho(body);
+        const run = await runAgent(body);
         sendJson(response, run.status === "succeeded" ? 201 : 400, serializeRun(run));
         return;
       }
@@ -149,5 +163,5 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     }
   });
 
-  return { store, server, runEcho };
+  return { store, server, runAgent, runEcho };
 }
