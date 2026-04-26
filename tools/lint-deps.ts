@@ -30,6 +30,10 @@ const packageRules = new Map<string, PackageRule>([
   ["@weki/marketing", { root: "apps/marketing", allowed: new Set() }]
 ]);
 
+const rustDependencyRules = new Map<string, Set<string>>([
+  ["packages/desktop/src-tauri/Cargo.toml", new Set(["notify", "serde", "serde_json", "tauri", "tauri-build", "tokio"])]
+]);
+
 const importPattern =
   /\b(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s*)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 
@@ -74,6 +78,37 @@ async function exists(dir: string): Promise<boolean> {
   }
 }
 
+function parseCargoDependencyNames(cargoToml: string): string[] {
+  const names: string[] = [];
+  let section: "dependencies" | "build-dependencies" | null = null;
+
+  for (const line of cargoToml.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === "[dependencies]") {
+      section = "dependencies";
+      continue;
+    }
+    if (trimmed === "[build-dependencies]") {
+      section = "build-dependencies";
+      continue;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      section = null;
+      continue;
+    }
+    if (!section || trimmed.length === 0 || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const match = /^([A-Za-z0-9_-]+)\s*=/.exec(trimmed);
+    if (match) {
+      names.push(match[1]);
+    }
+  }
+
+  return names;
+}
+
 async function main(): Promise<void> {
   const violations: string[] = [];
 
@@ -106,6 +141,20 @@ async function main(): Promise<void> {
             violations.push(`${path.relative(repoRoot, file)} reaches outside ${rule.root} with ${specifier}`);
           }
         }
+      }
+    }
+  }
+
+  for (const [relativePath, allowed] of rustDependencyRules) {
+    const cargoPath = path.join(repoRoot, relativePath);
+    if (!(await exists(cargoPath))) {
+      continue;
+    }
+
+    const names = parseCargoDependencyNames(await readFile(cargoPath, "utf8"));
+    for (const name of names) {
+      if (!allowed.has(name)) {
+        violations.push(`${relativePath} depends on ${name}; allowed Rust dependencies are ${[...allowed].join(", ")}`);
       }
     }
   }
