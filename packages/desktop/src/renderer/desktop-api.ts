@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   ApplyPatchDecision,
   ApplyPatchResponse,
@@ -9,6 +10,7 @@ import type {
 import type { WorkspaceDocumentRecord } from "../workspace-sync.js";
 
 export type DesktopApi = {
+  pickWorkspaceDirectory(): Promise<string | undefined>;
   openWorkspace(path: string): Promise<OpenWorkspaceResponse>;
   listDocuments(): Promise<WorkspaceDocumentRecord[]>;
   createDoc(path: string, body?: string): Promise<WorkspaceDocumentRecord>;
@@ -28,6 +30,13 @@ export function createTauriDesktopApi(): DesktopApi {
   };
 
   return {
+    async pickWorkspaceDirectory() {
+      const selected = await openDialog({ directory: true, multiple: false });
+      if (Array.isArray(selected)) {
+        return selected[0];
+      }
+      return selected ?? undefined;
+    },
     async openWorkspace(path: string) {
       const opened = normalizeOpenWorkspaceResponse(await invoke("open_workspace", { path }));
       workspace = opened;

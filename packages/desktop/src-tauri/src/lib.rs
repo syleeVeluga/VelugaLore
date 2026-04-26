@@ -91,8 +91,8 @@ async fn open_workspace(
     state: tauri::State<'_, AppState>,
     path: String,
 ) -> Result<OpenWorkspaceResponse, String> {
-    let root = PathBuf::from(path).canonicalize().or_else(|_| {
-        fs::create_dir_all(&path).map_err(|err| err.to_string())?;
+    let root = PathBuf::from(&path).canonicalize().or_else(|_| {
+        fs::create_dir_all(&path)?;
         PathBuf::from(&path).canonicalize()
     }).map_err(|err| err.to_string())?;
     fs::create_dir_all(root.join(".weki")).map_err(|err| err.to_string())?;
@@ -319,6 +319,7 @@ async fn list_pending_approvals(state: tauri::State<'_, AppState>) -> Result<Vec
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             open_workspace,

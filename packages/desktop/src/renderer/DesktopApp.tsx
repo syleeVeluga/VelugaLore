@@ -43,10 +43,31 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   }
 
   async function openWorkspace() {
-    const opened = await api.openWorkspace(workspacePath);
-    setWorkspaceRoot(opened.root);
-    setStatus(t("desktop.status.opened"));
-    await refreshDocuments();
+    let target = workspacePath.trim();
+    if (!target) {
+      const picked = await api.pickWorkspaceDirectory();
+      if (!picked) {
+        return;
+      }
+      target = picked;
+      setWorkspacePath(picked);
+    }
+    try {
+      const opened = await api.openWorkspace(target);
+      setWorkspaceRoot(opened.root);
+      setStatus(t("desktop.status.opened"));
+      await refreshDocuments();
+    } catch (error) {
+      console.error("openWorkspace failed", error);
+      setStatus(t("desktop.status.error"));
+    }
+  }
+
+  async function pickWorkspace() {
+    const picked = await api.pickWorkspaceDirectory();
+    if (picked) {
+      setWorkspacePath(picked);
+    }
   }
 
   async function createNote() {
@@ -99,6 +120,9 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
           <span>{t("desktop.workspace.path")}</span>
           <input value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} />
         </label>
+        <button type="button" onClick={pickWorkspace}>
+          {t("desktop.workspace.browse")}
+        </button>
         <button type="button" onClick={openWorkspace}>
           {t("desktop.workspace.open")}
         </button>
