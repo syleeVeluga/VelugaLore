@@ -4,9 +4,9 @@ PRD-first implementation workspace for WekiDocs.
 
 ## Current Slice
 
-- Slice: `S-01 Monorepo bootstrap`
-- PRD: `PRD/09-code-layout.md`, `PRD/13-implementation-guide.md`, `PRD/14-milestones.md`
-- Goal: establish the pnpm/turbo monorepo, package boundaries, and initial CI gate.
+- Slice: `S-03 Local workspace FS watcher and 2-phase write`
+- PRD: `PRD/08-data-model.md`, `PRD/11-security-rbac.md`, `PRD/15-acceptance-criteria.md`
+- Goal: keep Postgres-backed document rows and local markdown mirrors consistent through atomic writes and external edit reconciliation.
 
 ## Bootstrap
 
