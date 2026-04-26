@@ -105,7 +105,7 @@ function Invoke-Validate([string]$RepoRoot, [switch]$Strict) {
     $registry = Read-AgentRegistry $RepoRoot
     $ids = @{}
     foreach ($slice in $sliceMap.slices) {
-      if ($slice.id -notmatch '^S-\d{2}[a-z]?$') {
+      if ($slice.id -notmatch '^S-\d{2}(?:\.\d+)?[a-z]?$') {
         $errors.Add("Invalid slice id format: $($slice.id)")
       }
       if ($ids.ContainsKey($slice.id)) {

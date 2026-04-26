@@ -12,16 +12,27 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && vite build",
+    "build:renderer": "vite build",
+    "dev": "tauri dev",
+    "dev:renderer": "vite --host 127.0.0.1 --port 1420",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
     "@weki/core": "workspace:*",
     "@weki/editor": "workspace:*",
-    "@weki/graph": "workspace:*"
+    "@weki/graph": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.5.4",
+    "vite": "^5.4.11",
     "vitest": "^2.1.8"
   }
 }
