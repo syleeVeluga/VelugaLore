@@ -47,6 +47,25 @@ last_updated: 2026-04-26
 
 색 약속: 모드 칩의 `●Edit` 은 **노란 배경**, 분석 모드는 회색. 편집 모드에서 사용자는 "지금 변경 가능" 을 색만으로 인식. (§7.6)
 
+### 7.1.2 수동 페이지·폴더 관리 기본 / Manual page & folder management baseline
+
+WekiDocs 는 `/curate` 가 자동으로 정보 아키텍처를 제안하는 제품이지만, 사용자가 평범하게 Notion/Obsidian 처럼 직접 문서를 만들고 정리할 수 있어야 한다. 이 수동 관리 레이어는 S-09b 의 일부로 검증한다. 이유는 사람이 직접 바꾼 페이지/폴더 구조와 `curate` 가 제안하는 IA op 가 같은 백링크·stub·revert 불변식을 공유해야 하기 때문이다.
+
+좌측 파일트리는 v1 에서 다음 조작을 기본 제공한다.
+
+| 조작 | 진입점 | 보장 |
+|---|---|---|
+| 새 페이지 | `Cmd/Ctrl+N`, 파일트리 우클릭, 명령 팔레트 `New page` | 선택한 폴더 아래 `.md` 생성, 즉시 제목 편집, `documents.kind` 기본값은 `draft` |
+| 새 폴더 | 파일트리 우클릭 `New folder` | 빈 폴더는 `folder/_index.md` (`kind='index'`) 로 표현해 DB/FS 동기화와 검색 대상이 유지됨 |
+| 이름 변경 | 파일트리 inline rename, 현재 문서 제목 영역 | `documents.path` 와 title 동시 갱신, `[[wiki link]]` rewrite preview 제공 |
+| 이동 | drag/drop, `Move to...` 명령 | `move_doc(relink=true)` 와 같은 백링크 보존 규칙 사용. 사람이 직접 이동하면 별도 approval 없이 즉시 적용하되 undo 가능 |
+| 복제 | 파일트리 `Duplicate` | 새 `doc_id`, 새 path, 원본 링크는 복사하되 `frontmatter._import` 는 제거 |
+| 삭제/보관 | `Delete` 또는 파일트리 메뉴 | 기본은 `wiki/_archive/` 로 이동. 영구 삭제는 confirm dialog + 외부 링크 0 확인 후만 |
+| 복원 | archive 파일트리 또는 `/diff`/`/revert` 패널 | `doc_versions` 에서 원래 path/body 복원 |
+| 태그·kind 편집 | frontmatter 패널 또는 문서 상단 속성 행 | `documents.frontmatter`, `document_tags`, `documents.kind` 동기화 |
+
+수동 조작은 에이전트 출력이 아니므로 `Patch` 생성 의무는 없지만, 적용 경로는 반드시 §11.1 의 2-phase write 를 사용한다. 모든 구조 조작은 `doc_versions` 와 `audit_log` 에 남고, undo/redo 와 `/revert` 의 대상이 된다. 분석 모드에서는 본문 편집과 구조 조작 버튼을 비활성화하고, 파일 열기·검색·graph/backlink 탐색만 허용한다.
+
 ## 7.2 메뉴 구조 / Top-level menus
 
 ```

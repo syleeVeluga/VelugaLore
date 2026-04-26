@@ -105,12 +105,12 @@
     },
     {
       "id": "S-09b",
-      "title": "CurateAgent and IA ops",
+      "title": "CurateAgent, IA ops, and manual page management",
       "milestone": "M2.5",
       "primary_agents": ["agent-runtime-engineer", "db-rbac-engineer", "editor-product-engineer", "quality-observability-engineer"],
-      "prd": ["PRD/05-agent-catalog.md", "PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/13-implementation-guide.md", "PRD/15-acceptance-criteria.md"],
-      "dod": ["/curate proposes split/merge/move/adopt_orphan only", "all IA ops require approval", "one run reverts exactly", "backlinks and stubs are preserved", "curate golden set includes failure modes"],
-      "acceptance": ["A12", "A13", "A14", "P2.1"]
+      "prd": ["PRD/05-agent-catalog.md", "PRD/07-editor-ui.md", "PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/13-implementation-guide.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["/curate proposes split/merge/move/adopt_orphan only", "all IA ops require approval", "one run reverts exactly", "backlinks and stubs are preserved", "curate golden set includes failure modes", "manual page/folder management supports create, rename, move, duplicate, archive/delete, restore, and tag/kind edits"],
+      "acceptance": ["A12", "A13", "A14", "A14.1", "P2.1"]
     },
     {
       "id": "S-10",

@@ -24,6 +24,7 @@ last_updated: 2026-04-26
 - A12 · Curate 안전성 — 백링크 보존: `split_doc`/`merge_docs`/`move_doc` 후 workspace 내 모든 백링크 정확도 100% (id 기반 + 마크다운 재작성). stub redirect 가 외부 링크 깨짐 0건.
 - A13 · Curate 트랜잭션성: 한 `/curate` 호출의 모든 op 가 한 `agent_runs` 행에 묶이고 단일 `/revert run:<id>` 로 100% 정확 inverse.
 - A14 · Curate 결정 동의: 자동 적용 0회. 모든 IA 변경 op 는 §11.4 approval queue 를 통과한 뒤에만 반영. 분석 모드에서는 *제안만* 표시.
+- A14.1 · 수동 페이지/폴더 관리: 사용자는 파일트리에서 새 페이지/폴더 생성, 이름변경, drag/drop 이동, 복제, 보관/삭제, 복원, 태그·kind 편집을 수행할 수 있다. 모든 조작은 §11.1 2-phase write, `doc_versions`, `audit_log` 를 통과하고 백링크/stub 불변식을 깨지 않는다. 분석 모드에서는 구조 변경 버튼이 비활성화된다.
 - A15 · Ingest fan-out: 한 raw 가 평균 3~10 wiki 노드를 갱신/생성 (골든셋 30개 raw 기준). 단일 노드 생성에 그치는 비율 ≤ 20%.
 - A16 · 컴파운딩 정상 동작: `/ask` 응답 중 ≥ 60% 가 `kind='qa'` 페이지로 자동 저장되고, 같은 workspace 의 다음 `/ask` 검색에서 1차 후보로 사용됨.
 - A17 · 검색 정확도 (`/find`): 골든셋 100 쿼리에서 정답 노드의 평균 rank ≤ 3 (top-3 hit ≥ 90%). 3-way (literal/fuzzy/semantic) 모두 단독 사용 시보다 RRF 합성이 더 나아야 함.
