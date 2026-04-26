@@ -1,6 +1,7 @@
 import {
   agentRunEventSchema,
   agentRunInvocationSchema,
+  parseDraftPatchOps,
   patchStatusSchema,
   renderPatchPreview,
   type AgentOutput,
@@ -9,7 +10,14 @@ import {
 } from "@weki/core";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { z, ZodError } from "zod";
-import { InMemoryPatchApprovalStore, type ApprovalDecision, type PatchApprovalStore, type StoredPatchApproval } from "./approval-store.js";
+import {
+  InMemoryPatchApprovalStore,
+  PatchDecisionTerminalError,
+  PatchNotFoundError,
+  type ApprovalDecision,
+  type PatchApprovalStore,
+  type StoredPatchApproval
+} from "./approval-store.js";
 import { runDraftAgent } from "./draft-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
@@ -150,8 +158,12 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       if (method === "GET" && url.pathname === "/patches") {
         const requestedStatus = url.searchParams.get("status");
+        const requestedWorkspaceId = url.searchParams.get("workspaceId");
         const status = requestedStatus ? patchStatusSchema.parse(requestedStatus) : undefined;
-        const patches = await approvalStore.list(status);
+        const workspaceId = requestedWorkspaceId
+          ? z.string().uuid().parse(requestedWorkspaceId)
+          : undefined;
+        const patches = await approvalStore.list({ status, workspaceId });
         sendJson(response, 200, { patches: patches.map(serializePatch) });
         return;
       }
@@ -209,6 +221,14 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
         sendJson(response, 403, { error: error.code });
         return;
       }
+      if (error instanceof PatchNotFoundError) {
+        sendJson(response, 404, { error: error.code });
+        return;
+      }
+      if (error instanceof PatchDecisionTerminalError) {
+        sendJson(response, 409, { error: error.code });
+        return;
+      }
       if (error instanceof ZodError || error instanceof SyntaxError) {
         sendJson(response, 400, { error: error.message });
         return;
@@ -231,14 +251,19 @@ function withPreviewHtml<T extends Extract<AgentOutput, { kind: "Patch" }>>(
   }
 
   try {
+    const ops = parseDraftPatchOps(patch.ops);
     return {
       ...patch,
       previewHtml: renderPatchPreview({
         document: { id: docId, body },
-        ops: patch.ops as never
+        ops
       }).previewHtml
     };
-  } catch {
+  } catch (error) {
+    console.warn(
+      "[agent-server] failed to render patch preview html",
+      error instanceof Error ? error.message : error
+    );
     return patch;
   }
 }

@@ -111,7 +111,7 @@ describe("S-05 agent daemon", () => {
     expect(run.patch.ops[0]?.kind).toBe("insert_section_tree");
     expect(run.patch.ops.filter((op) => op.kind === "append_paragraph")).toHaveLength(5);
 
-    const queued = await approvalStore.list("proposed");
+    const queued = await approvalStore.list({ status: "proposed" });
     expect(queued).toHaveLength(1);
     expect(queued[0]?.previewHtml).toContain("weki-patch-preview");
   });
@@ -153,6 +153,79 @@ describe("S-05 agent daemon", () => {
     expect(decided.status).toBe(200);
     expect(decidedBody.status).toBe("applied");
     expect(decidedBody.decidedBy).toBe("55555555-5555-4555-8555-555555555555");
+  });
+
+  it("scopes /patches by workspaceId query param", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const otherWorkspaceId = "22222222-2222-4222-8222-222222222222";
+    await approvalStore.propose({
+      run: {
+        id: "77777777-7777-4777-8777-777777777777",
+        workspaceId,
+        agentId: "draft",
+        invocation: { workspaceId, agentId: "draft", input: "" },
+        status: "succeeded",
+        startedAt: new Date()
+      },
+      patch: { kind: "Patch", ops: [], rationale: "", requiresApproval: true }
+    });
+    await approvalStore.propose({
+      run: {
+        id: "88888888-8888-4888-8888-888888888888",
+        workspaceId: otherWorkspaceId,
+        agentId: "draft",
+        invocation: { workspaceId: otherWorkspaceId, agentId: "draft", input: "" },
+        status: "succeeded",
+        startedAt: new Date()
+      },
+      patch: { kind: "Patch", ops: [], rationale: "", requiresApproval: true }
+    });
+
+    const scoped = await fetch(`${baseUrl}/patches?workspaceId=${workspaceId}`);
+    const scopedBody = (await scoped.json()) as { patches: Array<{ workspaceId: string }> };
+    expect(scopedBody.patches).toHaveLength(1);
+    expect(scopedBody.patches[0]?.workspaceId).toBe(workspaceId);
+  });
+
+  it("returns 404 when deciding a missing patch and 409 when it is already terminal", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const decidedBy = "55555555-5555-4555-8555-555555555555";
+    const missing = await fetch(`${baseUrl}/patches/99999999-9999-4999-8999-999999999999/decision`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decision: "applied", decidedBy })
+    });
+    expect(missing.status).toBe(404);
+    await expect(missing.json()).resolves.toEqual({ error: "PATCH_NOT_FOUND" });
+
+    const patch = await approvalStore.propose({
+      run: {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        workspaceId,
+        agentId: "draft",
+        invocation: { workspaceId, agentId: "draft", input: "" },
+        status: "succeeded",
+        startedAt: new Date()
+      },
+      patch: { kind: "Patch", ops: [], rationale: "", requiresApproval: true }
+    });
+    await approvalStore.decide({ id: patch.id, decision: "applied", decidedBy });
+
+    const terminal = await fetch(`${baseUrl}/patches/${patch.id}/decision`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decision: "rejected", decidedBy })
+    });
+    expect(terminal.status).toBe(409);
+    await expect(terminal.json()).resolves.toEqual({ error: "PATCH_DECISION_TERMINAL" });
   });
 
   it("rejects invalid approval decisions before they reach the queue", async () => {

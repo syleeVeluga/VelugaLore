@@ -57,6 +57,24 @@ describe("S-07 patch preview", () => {
     expect(once).toBe("abc");
   });
 
+  it("rejects replace_range ops whose indices exceed body length", () => {
+    expect(() =>
+      applyPatchOpsToBody(
+        "abc",
+        [{ kind: "replace_range", docId: "doc-1", from: 0, to: 99, text: "x" }],
+        "doc-1"
+      )
+    ).toThrow(/out of bounds/);
+
+    expect(() =>
+      applyPatchOpsToBody(
+        "abc",
+        [{ kind: "replace_range", docId: "doc-1", from: 99, to: 100, text: "x" }],
+        "doc-1"
+      )
+    ).toThrow(/out of bounds/);
+  });
+
   it("escapes document text in preview html", () => {
     const preview = renderPatchPreview({
       document: { id: "doc-1", body: "<script>alert(1)</script>" },

@@ -27,11 +27,32 @@ export type DecidePatchInput = {
   rationale?: string;
 };
 
+export type ListPatchesFilter = {
+  status?: PatchStatus;
+  workspaceId?: string;
+};
+
+export class PatchNotFoundError extends Error {
+  readonly code = "PATCH_NOT_FOUND";
+  constructor(id: string) {
+    super(`Patch ${id} not found`);
+    this.name = "PatchNotFoundError";
+  }
+}
+
+export class PatchDecisionTerminalError extends Error {
+  readonly code = "PATCH_DECISION_TERMINAL";
+  constructor(id: string, status: PatchStatus) {
+    super(`Patch ${id} is already in terminal status ${status}`);
+    this.name = "PatchDecisionTerminalError";
+  }
+}
+
 export interface PatchApprovalStore {
   propose(input: ProposePatchInput): Promise<StoredPatchApproval>;
   decide(input: DecidePatchInput): Promise<StoredPatchApproval>;
   get(id: string): Promise<StoredPatchApproval | undefined>;
-  list(status?: PatchStatus): Promise<StoredPatchApproval[]>;
+  list(filter?: ListPatchesFilter): Promise<StoredPatchApproval[]>;
 }
 
 export type PatchApprovalSqlClient = {
@@ -98,6 +119,18 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
     await this.client.query("BEGIN");
     try {
       await this.client.query("SELECT set_config('app.user_id', $1, true)", [input.decidedBy]);
+      const existing = await this.client.query<{ status: PatchStatus }>(
+        "SELECT status FROM patches WHERE id = $1",
+        [input.id]
+      );
+      const currentStatus = existing.rows[0]?.status;
+      if (!currentStatus) {
+        throw new PatchNotFoundError(input.id);
+      }
+      if (currentStatus !== "proposed") {
+        throw new PatchDecisionTerminalError(input.id, currentStatus);
+      }
+
       const decision = await this.client.query<{ decided: boolean }>(
         "SELECT app_decide_patch($1, $2, $3) AS decided",
         [input.id, input.decision, input.rationale ?? null]
@@ -107,7 +140,7 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
       }
       const patch = await this.get(input.id);
       if (!patch) {
-        throw new Error("Patch not found");
+        throw new PatchNotFoundError(input.id);
       }
       await this.client.query("COMMIT");
       return patch;
@@ -139,7 +172,7 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
     return row ? rowToPatch(row) : undefined;
   }
 
-  async list(status?: PatchStatus): Promise<StoredPatchApproval[]> {
+  async list(filter: ListPatchesFilter = {}): Promise<StoredPatchApproval[]> {
     const result = await this.client.query<PatchApprovalSqlRow>(
       `
         SELECT
@@ -154,9 +187,10 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
         FROM patches
         JOIN agent_runs ON agent_runs.id = patches.agent_run_id
         WHERE ($1::text IS NULL OR patches.status = $1)
+          AND ($2::uuid IS NULL OR agent_runs.workspace_id = $2)
         ORDER BY patches.decided_at DESC NULLS FIRST, patches.id
       `,
-      [status ?? null]
+      [filter.status ?? null, filter.workspaceId ?? null]
     );
     return result.rows.map(rowToPatch);
   }
@@ -181,10 +215,10 @@ export class InMemoryPatchApprovalStore implements PatchApprovalStore {
   async decide(input: DecidePatchInput): Promise<StoredPatchApproval> {
     const current = this.patches.get(input.id);
     if (!current) {
-      throw new Error("Patch not found");
+      throw new PatchNotFoundError(input.id);
     }
     if (current.status !== "proposed") {
-      throw new Error("Patch decision is terminal");
+      throw new PatchDecisionTerminalError(input.id, current.status);
     }
 
     const updated: StoredPatchApproval = {
@@ -201,7 +235,17 @@ export class InMemoryPatchApprovalStore implements PatchApprovalStore {
     return this.patches.get(id);
   }
 
-  async list(status?: PatchStatus): Promise<StoredPatchApproval[]> {
-    return [...this.patches.values()].filter((patch) => !status || patch.status === status);
+  async list(filter: ListPatchesFilter = {}): Promise<StoredPatchApproval[]> {
+    return [...this.patches.values()]
+      .filter((patch) => !filter.status || patch.status === filter.status)
+      .filter((patch) => !filter.workspaceId || patch.workspaceId === filter.workspaceId)
+      .sort((a, b) => {
+        const aTime = a.decidedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+        const bTime = b.decidedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+        if (aTime !== bTime) {
+          return bTime - aTime;
+        }
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      });
   }
 }

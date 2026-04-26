@@ -77,6 +77,12 @@ function applyPatchOpToBody(body: string, op: DraftPatchOp, fallbackDocId: strin
 }
 
 function applyReplaceRange(body: string, op: Extract<DraftPatchOp, { kind: "replace_range" }>): string {
+  if (op.from > body.length || op.to > body.length) {
+    throw new RangeError(
+      `replace_range out of bounds: from=${op.from} to=${op.to} body.length=${body.length}`
+    );
+  }
+
   if (body.slice(op.from, op.to) === op.text) {
     return body;
   }
