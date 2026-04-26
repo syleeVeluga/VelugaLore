@@ -62,6 +62,12 @@ When this layout does not exist yet, start with S-01 and scaffold only what that
 - Agent runtime work needs pytest plus eval cases in `packages/agent-runtime-py/evals/`.
 - Frontend work needs component or browser verification for layout, text overflow, keyboard flow, and approval queue states.
 
+## GitHub Publishing
+
+- For this repository, create and update PRs with the authenticated `gh` CLI by default.
+- Do not try the GitHub connector for PR creation first; the connector installation can return `403 Resource not accessible by integration` here.
+- The GitHub connector may still be used for read-only PR/issue inspection when it is useful and available.
+
 ## Agent Role Registry
 
 Use `.agents/agents.toml` as the index of available development roles and focused subagents. These are prompt cards for human or AI use; they do not change product runtime behavior.
