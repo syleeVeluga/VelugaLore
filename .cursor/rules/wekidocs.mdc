@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+Follow the repository rules in `AGENTS.md`.
+
+Use `.agents/agents.toml` to choose the right development role, and run `tools/agent-harness.ps1 -Command validate` before handoff.

@@ -1,0 +1,190 @@
+{
+  "project": "WekiDocs",
+  "version": 1,
+  "slices": [
+    {
+      "id": "S-01",
+      "title": "Monorepo bootstrap",
+      "milestone": "M0",
+      "primary_agents": ["foundation-architect", "slice-orchestrator"],
+      "prd": ["PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md"],
+      "dod": ["pnpm install succeeds", "turbo build command exists", "initial CI shape is documented or configured", "package boundaries match PRD section 9"],
+      "acceptance": []
+    },
+    {
+      "id": "S-02",
+      "title": "Postgres schema v1 and drizzle migrations",
+      "milestone": "M0",
+      "primary_agents": ["db-rbac-engineer"],
+      "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["db reset and migrate path exists", "RLS integration tests cover roles", "raw_sources update is rejected", "core schema types and DB schema agree"],
+      "acceptance": ["A1", "A2", "C1"]
+    },
+    {
+      "id": "S-03",
+      "title": "Local workspace FS watcher and 2-phase write",
+      "milestone": "M0",
+      "primary_agents": ["db-rbac-engineer", "editor-product-engineer"],
+      "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["2-phase write is atomic", "external file edits reconcile", "conflicts surface to user", "interleaved human and agent edits keep sha256 consistent"],
+      "acceptance": ["A4", "C2"]
+    },
+    {
+      "id": "S-04",
+      "title": "CodeMirror editor and slash menu",
+      "milestone": "M1",
+      "primary_agents": ["editor-product-engineer"],
+      "prd": ["PRD/06-slash-commands.md", "PRD/07-editor-ui.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["/draft command parses and renders", "slash autocomplete includes help examples", "parser fuzz path exists", "selection target is represented"],
+      "acceptance": ["A3", "U1", "U2"]
+    },
+    {
+      "id": "S-05",
+      "title": "Agent daemon",
+      "milestone": "M1",
+      "primary_agents": ["agent-runtime-engineer", "foundation-architect"],
+      "prd": ["PRD/04-architecture.md", "PRD/10-extension-paths.md", "PRD/12-observability.md"],
+      "dod": ["HTTP/SSE healthcheck works", "echo agent run persists", "tool allowlist fails closed", "no opencode code dependency"],
+      "acceptance": []
+    },
+    {
+      "id": "S-06",
+      "title": "DraftAgent",
+      "milestone": "M1",
+      "primary_agents": ["agent-runtime-engineer", "editor-product-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/06-slash-commands.md", "PRD/13-implementation-guide.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["/draft returns DraftPatch", "empty doc creates outline and draft", "selection expands selected text", "eval score gate exists"],
+      "acceptance": ["P2", "U1"]
+    },
+    {
+      "id": "S-07",
+      "title": "Patch preview and approval queue",
+      "milestone": "M1",
+      "primary_agents": ["editor-product-engineer", "db-rbac-engineer"],
+      "subagents": ["security-approval-check"],
+      "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["patch preview shows before/after", "approval state machine persists", "audit log records decisions", "keyboard apply/reject exists"],
+      "acceptance": ["A1", "S3"]
+    },
+    {
+      "id": "S-08",
+      "title": "ImproveAgent and AskAgent",
+      "milestone": "M2",
+      "primary_agents": ["agent-runtime-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/06-slash-commands.md", "PRD/12-observability.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["/improve returns three alternatives", "/ask searches with sources", "/ask stores qa pages", "evals cover both agents"],
+      "acceptance": ["A16", "P2"]
+    },
+    {
+      "id": "S-09a",
+      "title": "IngestAgent and import system operation",
+      "milestone": "M2",
+      "primary_agents": ["agent-runtime-engineer", "db-rbac-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/08-data-model.md", "PRD/13-implementation-guide.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["raw sources are immutable", "one raw fans out to 3-10 nodes on average", "import run rollback works", "docx/md import fidelity is measured"],
+      "acceptance": ["A5", "A6", "A7", "A8", "A15"]
+    },
+    {
+      "id": "S-09b",
+      "title": "CurateAgent and IA ops",
+      "milestone": "M2.5",
+      "primary_agents": ["agent-runtime-engineer", "db-rbac-engineer", "editor-product-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/13-implementation-guide.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["/curate proposes split/merge/move/adopt_orphan only", "all IA ops require approval", "one run reverts exactly", "backlinks and stubs are preserved", "curate golden set includes failure modes"],
+      "acceptance": ["A12", "A13", "A14", "P2.1"]
+    },
+    {
+      "id": "S-10",
+      "title": "System ops: find, diff, blame, revert, lint",
+      "milestone": "M3",
+      "primary_agents": ["db-rbac-engineer", "agent-runtime-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/04-architecture.md", "PRD/05-agent-catalog.md", "PRD/06-slash-commands.md", "PRD/08-data-model.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["3-way RRF find works", "grep matches ripgrep behavior", "diff and blame are line accurate", "broken links are detected"],
+      "acceptance": ["A10", "A17", "A17.1", "P5", "P5.1"]
+    },
+    {
+      "id": "S-11",
+      "title": "Markdown LSP diagnostics and analyze/edit mode",
+      "milestone": "M3",
+      "primary_agents": ["editor-product-engineer", "db-rbac-engineer"],
+      "prd": ["PRD/07-editor-ui.md", "PRD/10-extension-paths.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["new workspace defaults to analyze mode", "write commands are blocked in analyze mode", "broken link diagnostics are responsive", "mode toggle is visible"],
+      "acceptance": ["A11"]
+    },
+    {
+      "id": "S-12",
+      "title": "RBAC and multi-user mode",
+      "milestone": "M3",
+      "primary_agents": ["db-rbac-engineer"],
+      "subagents": ["security-approval-check"],
+      "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["reader/editor/admin/owner permissions match matrix", "write denial is audited", "session user is set for RLS", "mode settings cover Solo Team Enterprise"],
+      "acceptance": ["C1", "S3"]
+    },
+    {
+      "id": "S-13",
+      "title": "Web app v1 read-mostly",
+      "milestone": "M3",
+      "primary_agents": ["editor-product-engineer", "foundation-architect"],
+      "prd": ["PRD/04-architecture.md", "PRD/07-editor-ui.md", "PRD/14-milestones.md"],
+      "dod": ["web reads same workspace through server API", "web can ask/read without desktop-only assumptions", "desktop and web share editor primitives where practical"],
+      "acceptance": []
+    },
+    {
+      "id": "S-14a",
+      "title": "Extension infra T1 and T2",
+      "milestone": "M4",
+      "primary_agents": ["extension-platform-engineer", "agent-runtime-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/15-acceptance-criteria.md"],
+      "dod": ["workspace skills load conditionally", "markdown-defined agents register slash commands", "T2 tools are whitelist-only", "non-technical skill addition can be demonstrated"],
+      "acceptance": []
+    },
+    {
+      "id": "S-14b",
+      "title": "Extension infra T3 plugin SDK",
+      "milestone": "M4",
+      "primary_agents": ["extension-platform-engineer"],
+      "subagents": ["security-approval-check"],
+      "prd": ["PRD/09-code-layout.md", "PRD/10-extension-paths.md", "PRD/11-security-rbac.md"],
+      "dod": ["sample tone-coach plugin loads", "plugin permissions are enforced", "unsigned plugin developer mode is explicit", "plugin SDK surface is SemVer-ready"],
+      "acceptance": ["S1"]
+    },
+    {
+      "id": "S-14c",
+      "title": "Extension infra T4 MCP host",
+      "milestone": "M4",
+      "primary_agents": ["extension-platform-engineer"],
+      "subagents": ["security-approval-check"],
+      "prd": ["PRD/10-extension-paths.md", "PRD/11-security-rbac.md", "PRD/12-observability.md"],
+      "dod": ["mcp.toml registration works", "MCP calls pass approval", "secrets are not plaintext", "tool calls are traced and audited with redaction"],
+      "acceptance": ["S1", "S3"]
+    },
+    {
+      "id": "S-15",
+      "title": "Triples graph future toggle",
+      "milestone": "M4",
+      "primary_agents": ["db-rbac-engineer", "editor-product-engineer"],
+      "prd": ["PRD/07-editor-ui.md", "PRD/08-data-model.md", "PRD/14-milestones.md"],
+      "dod": ["v1 links graph remains default", "triple table/API can be toggled experimentally", "graph UI degrades cleanly without triples"],
+      "acceptance": []
+    },
+    {
+      "id": "S-16",
+      "title": "Eval suite and cost dashboard",
+      "milestone": "M5",
+      "primary_agents": ["quality-observability-engineer", "agent-runtime-engineer", "editor-product-engineer"],
+      "prd": ["PRD/12-observability.md", "PRD/15-acceptance-criteria.md", "PRD/16-risks.md"],
+      "dod": ["core and system eval suites meet GA distribution", "eval regression gate blocks CI", "cost dashboard reads agent_runs", "budget alerts and hard stop are configurable"],
+      "acceptance": ["S3"]
+    },
+    {
+      "id": "S-17",
+      "title": "Launch first-party extension agents",
+      "milestone": "M5",
+      "primary_agents": ["extension-platform-engineer", "quality-observability-engineer"],
+      "prd": ["PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/14-milestones.md"],
+      "dod": ["at least eight first-party extension agents are marketplace-ready", "each uses T2 or T3 format", "activation is one click", "each has help examples and basic eval or smoke test"],
+      "acceptance": []
+    }
+  ]
+}

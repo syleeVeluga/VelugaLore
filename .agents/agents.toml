@@ -1,0 +1,78 @@
+version = 1
+project = "WekiDocs"
+prd_root = "PRD"
+harness = "tools/agent-harness.ps1"
+slice_map = ".agents/harness/slices.json"
+default_language = "ko"
+
+[defaults]
+implementation_unit = "one vertical slice"
+traceability = "slice id + PRD sections + acceptance criteria"
+handoff = "files changed, tests run, residual risk"
+
+[[agent]]
+id = "slice-orchestrator"
+path = ".agents/roles/slice-orchestrator.md"
+primary_for = ["slice selection", "PRD traceability", "handoff planning", "cross-package sequencing"]
+reads = ["PRD/00-onepager.md", "PRD/13-implementation-guide.md", ".agents/harness/slices.json"]
+
+[[agent]]
+id = "foundation-architect"
+path = ".agents/roles/foundation-architect.md"
+primary_for = ["S-01", "package boundaries", "build system", "dependency policy", "CI shape"]
+reads = ["PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md"]
+
+[[agent]]
+id = "db-rbac-engineer"
+path = ".agents/roles/db-rbac-engineer.md"
+primary_for = ["S-02", "S-03", "S-10", "S-12", "schema", "RLS", "search", "2-phase write"]
+reads = ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"]
+
+[[agent]]
+id = "editor-product-engineer"
+path = ".agents/roles/editor-product-engineer.md"
+primary_for = ["S-04", "S-07", "S-11", "S-13", "desktop", "web", "editor", "approval queue UI"]
+reads = ["PRD/06-slash-commands.md", "PRD/07-editor-ui.md", "PRD/11-security-rbac.md"]
+
+[[agent]]
+id = "agent-runtime-engineer"
+path = ".agents/roles/agent-runtime-engineer.md"
+primary_for = ["S-05", "S-06", "S-08", "S-09a", "S-09b", "agent daemon", "pydantic-ai", "core prompts"]
+reads = ["PRD/04-architecture.md", "PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/13-implementation-guide.md"]
+
+[[agent]]
+id = "extension-platform-engineer"
+path = ".agents/roles/extension-platform-engineer.md"
+primary_for = ["S-14a", "S-14b", "S-14c", "S-15", "skill", "markdown agents", "plugin SDK", "MCP"]
+reads = ["PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/11-security-rbac.md"]
+
+[[agent]]
+id = "quality-observability-engineer"
+path = ".agents/roles/quality-observability-engineer.md"
+primary_for = ["S-16", "S-17", "evals", "OpenTelemetry", "cost", "release gates"]
+reads = ["PRD/12-observability.md", "PRD/15-acceptance-criteria.md", "PRD/16-risks.md"]
+
+[[subagent]]
+id = "prd-recon"
+path = ".agents/subagents/prd-recon.md"
+use_for = ["extracting exact requirements", "checking PRD conflicts", "building traceability matrices"]
+
+[[subagent]]
+id = "schema-migration-check"
+path = ".agents/subagents/schema-migration-check.md"
+use_for = ["reviewing schema, migrations, RLS, patch persistence", "checking transaction invariants"]
+
+[[subagent]]
+id = "agent-eval-check"
+path = ".agents/subagents/agent-eval-check.md"
+use_for = ["reviewing prompts, pydantic output models, golden eval cases", "checking regression gates"]
+
+[[subagent]]
+id = "ui-flow-check"
+path = ".agents/subagents/ui-flow-check.md"
+use_for = ["reviewing editor, slash menu, diff preview, approval queue, keyboard flows"]
+
+[[subagent]]
+id = "security-approval-check"
+path = ".agents/subagents/security-approval-check.md"
+use_for = ["checking approval bypass risks", "RBAC gaps", "external tool and plugin leakage"]
