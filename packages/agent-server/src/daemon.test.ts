@@ -656,6 +656,28 @@ describe("S-05 agent daemon", () => {
     });
   });
 
+  it("allows S-10 system operations only through the system tool surface", async () => {
+    const runtime = new ToolRuntime({
+      search_workspace: () => ({ hits: [] }),
+      grep_workspace: () => ({ paths: [] }),
+      diff_doc_versions: () => ({ lines: [] }),
+      blame_doc_versions: () => ({ lines: [] }),
+      revert_doc_version: () => ({ status: "planned" }),
+      lint_workspace: () => ({ issues: [] }),
+      web_fetch: () => ({ body: "external" })
+    });
+
+    await expect(runtime.call("system", "search_workspace", {})).resolves.toEqual({ hits: [] });
+    await expect(runtime.call("system", "grep_workspace", {})).resolves.toEqual({ paths: [] });
+    await expect(runtime.call("system", "diff_doc_versions", {})).resolves.toEqual({ lines: [] });
+    await expect(runtime.call("system", "blame_doc_versions", {})).resolves.toEqual({ lines: [] });
+    await expect(runtime.call("system", "revert_doc_version", {})).resolves.toEqual({ status: "planned" });
+    await expect(runtime.call("system", "lint_workspace", {})).resolves.toEqual({ issues: [] });
+    await expect(runtime.call("system", "web_fetch", {})).rejects.toMatchObject({
+      code: "TOOL_NOT_ALLOWED"
+    });
+  });
+
   it("returns 403 for denied HTTP tool calls", async () => {
     const daemon = createAgentDaemon({
       toolRuntime: new ToolRuntime({ read_doc: () => ({ body: "secret" }) })
