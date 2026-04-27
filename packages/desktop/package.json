@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "tsc -p tsconfig.json && vite build && node scripts/check-production-guard.cjs",
     "build:renderer": "vite build",
     "dev": "tauri dev",
     "dev:renderer": "vite --host 127.0.0.1 --port 1420",

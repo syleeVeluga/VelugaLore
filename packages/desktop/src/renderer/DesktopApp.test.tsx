@@ -47,7 +47,10 @@ const fakeApi: DesktopApi = {
       workspaceId: "00000000-0000-4000-8000-000000000000",
       root: "D:/tmp/weki",
       agentServerPort: 0,
-      defaultMode: "analyze"
+      defaultMode: "analyze",
+      userId: "00000000-0000-4000-8000-000000000001",
+      displayName: "Solo",
+      mode: "solo"
     };
   },
   async listDocuments() {

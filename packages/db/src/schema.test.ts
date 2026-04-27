@@ -107,11 +107,18 @@ describe("S-02 schema contract", () => {
   it("gates document writes to editor-or-higher roles and exposes denied-write auditing", async () => {
     const sql = await migrationSql();
     expect(sql).toContain("CREATE OR REPLACE FUNCTION app_can_write_workspace");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION app_role_override");
+    expect(sql).toContain("current_setting('app.dev_act_as_enabled', true) = 'true'");
+    expect(sql).toContain("current_setting('app.role_override', true) IN ('owner','admin','editor','reader')");
+    expect(sql).toContain("SELECT coalesce(app_role_override(), m.role)");
+    expect(sql).toContain("AND m.user_id = app_user_id()");
     expect(sql).toContain("IN ('owner','admin','editor')");
     expect(sql).toContain("CREATE POLICY documents_editor_update ON documents");
     expect(sql).toContain("CREATE OR REPLACE FUNCTION app_audit_write_denied");
     expect(sql).toContain("CREATE OR REPLACE FUNCTION app_update_document_body");
     expect(sql).toContain("'write_denied'");
+    expect(sql).toContain("'document.updated'");
+    expect(sql).toContain("'acted_as_role', app_role_override()");
   });
 
   it("hardens security definer functions and keeps sync writes compatible with last_editor", async () => {

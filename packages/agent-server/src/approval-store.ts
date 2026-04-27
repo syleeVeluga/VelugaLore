@@ -1,4 +1,4 @@
-import type { AgentOutput, PatchStatus } from "@weki/core";
+import type { AgentOutput, DevActAsRole, PatchStatus } from "@weki/core";
 import { randomUUID } from "node:crypto";
 import type { StoredAgentRun } from "./run-store.js";
 
@@ -12,6 +12,7 @@ export type StoredPatchApproval = {
   previewHtml?: string;
   status: PatchStatus;
   decidedBy?: string;
+  actedAsRole?: DevActAsRole;
   decidedAt?: Date;
 };
 
@@ -24,6 +25,7 @@ export type DecidePatchInput = {
   id: string;
   decision: ApprovalDecision;
   decidedBy: string;
+  actedAsRole?: DevActAsRole;
   rationale?: string;
 };
 
@@ -132,6 +134,12 @@ export class SqlPatchApprovalStore implements PatchApprovalStore {
     await this.client.query("BEGIN");
     try {
       await this.client.query("SELECT set_config('app.user_id', $1, true)", [input.decidedBy]);
+      await this.client.query("SELECT set_config('app.dev_act_as_enabled', $1, true)", [
+        input.actedAsRole ? "true" : "false"
+      ]);
+      await this.client.query("SELECT set_config('app.role_override', $1, true)", [
+        input.actedAsRole ?? ""
+      ]);
       const existing = await this.client.query<PatchDecisionPrecheckSqlRow>(
         `
           SELECT p.status, app_can_write_workspace(ar.workspace_id) AS can_write
@@ -247,6 +255,7 @@ export class InMemoryPatchApprovalStore implements PatchApprovalStore {
       ...current,
       status: input.decision,
       decidedBy: input.decidedBy,
+      actedAsRole: input.actedAsRole,
       decidedAt: new Date()
     };
     this.patches.set(updated.id, updated);

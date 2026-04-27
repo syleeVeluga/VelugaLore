@@ -27,6 +27,8 @@ struct DesktopState {
     watcher: Option<RecommendedWatcher>,
     documents: HashMap<String, DocumentRecord>,
     self_write_shas: HashMap<String, String>,
+    solo_user_id: Option<String>,
+    dev_act_as_role: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -52,6 +54,19 @@ struct OpenWorkspaceResponse {
     root: String,
     agent_server_port: u16,
     default_mode: String,
+    user_id: String,
+    display_name: String,
+    mode: String,
+    acted_as_role: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalUserIdentity {
+    version: u8,
+    user_id: String,
+    display_name: String,
+    provisioned_at: String,
 }
 
 #[derive(Serialize)]
@@ -103,10 +118,12 @@ async fn open_workspace(
     }).map_err(|err| err.to_string())?;
     fs::create_dir_all(root.join(".weki")).map_err(|err| err.to_string())?;
     let default_mode = ensure_workspace_agents_file(&root)?;
+    let identity = ensure_local_user_identity(&root)?;
+    let dev_act_as_role = dev_act_as_role();
 
     let workspace_id = make_uuid_like();
     let agent_server_port = reserve_port()?;
-    let child = spawn_agent_server(agent_server_port)?;
+    let child = spawn_agent_server(agent_server_port, &identity.user_id, dev_act_as_role.as_deref())?;
     let documents = load_markdown_documents(&root)?;
 
     let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
@@ -119,6 +136,8 @@ async fn open_workspace(
     guard.agent_server_port = Some(agent_server_port);
     guard.agent_server_child = Some(child);
     guard.documents = documents;
+    guard.solo_user_id = Some(identity.user_id.clone());
+    guard.dev_act_as_role = dev_act_as_role.clone();
     guard.self_write_shas.clear();
     drop(guard);
 
@@ -137,6 +156,10 @@ async fn open_workspace(
         root: root.to_string_lossy().to_string(),
         agent_server_port,
         default_mode,
+        user_id: identity.user_id,
+        display_name: identity.display_name,
+        mode: "solo".to_string(),
+        acted_as_role: dev_act_as_role,
     })
 }
 
@@ -680,6 +703,45 @@ fn ensure_workspace_agents_file(root: &Path) -> Result<String, String> {
     Ok(parse_workspace_default_mode(&body).to_string())
 }
 
+fn ensure_local_user_identity(root: &Path) -> Result<LocalUserIdentity, String> {
+    let user_path = root.join(".weki").join("user.json");
+    if user_path.exists() {
+        if let Ok(body) = fs::read_to_string(&user_path) {
+            if let Ok(identity) = serde_json::from_str::<LocalUserIdentity>(&body) {
+                if identity.version == 1 && !identity.user_id.is_empty() {
+                    return Ok(identity);
+                }
+            }
+        }
+    }
+
+    let identity = LocalUserIdentity {
+        version: 1,
+        user_id: make_uuid_like(),
+        display_name: std::env::var("USERNAME")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_else(|_| "Solo".to_string()),
+        provisioned_at: unix_nanos().to_string(),
+    };
+    let body = serde_json::to_string_pretty(&identity).map_err(|err| err.to_string())?;
+    fs::write(user_path, format!("{body}\n")).map_err(|err| err.to_string())?;
+    Ok(identity)
+}
+
+#[cfg(debug_assertions)]
+fn dev_act_as_role() -> Option<String> {
+    let role = std::env::var("WEKI_DEV_AS_ROLE").ok()?;
+    match role.as_str() {
+        "reader" | "editor" | "admin" | "owner" => Some(role),
+        _ => None,
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn dev_act_as_role() -> Option<String> {
+    None
+}
+
 fn parse_workspace_default_mode(body: &str) -> &'static str {
     for line in body.lines() {
         let trimmed = line.trim();
@@ -865,7 +927,7 @@ fn reserve_port() -> Result<u16, String> {
     Ok(port)
 }
 
-fn spawn_agent_server(port: u16) -> Result<Child, String> {
+fn spawn_agent_server(port: u16, solo_user_id: &str, dev_act_as_role: Option<&str>) -> Result<Child, String> {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(3)
@@ -897,9 +959,9 @@ fn spawn_agent_server(port: u16) -> Result<Child, String> {
     } else {
         Command::new("pnpm")
     };
+    command.current_dir(repo_root).args(pnpm_args).env("WEKI_SOLO_USER_ID", solo_user_id);
+    apply_dev_act_as_env(&mut command, dev_act_as_role);
     let mut child = command
-        .current_dir(repo_root)
-        .args(pnpm_args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -912,6 +974,20 @@ fn spawn_agent_server(port: u16) -> Result<Child, String> {
         return Err(error);
     }
     Ok(child)
+}
+
+#[cfg(debug_assertions)]
+fn apply_dev_act_as_env(command: &mut Command, dev_act_as_role: Option<&str>) {
+    if let Some(role) = dev_act_as_role {
+        command.env("WEKI_DEV_AS_ROLE", role);
+    } else {
+        command.env_remove("WEKI_DEV_AS_ROLE");
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn apply_dev_act_as_env(command: &mut Command, _dev_act_as_role: Option<&str>) {
+    command.env_remove("WEKI_DEV_AS_ROLE").env("NODE_ENV", "production");
 }
 
 fn wait_for_agent_ready(stdout: impl std::io::Read, timeout: Duration) -> Result<(), String> {

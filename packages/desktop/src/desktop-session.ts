@@ -1,9 +1,14 @@
 import {
   agentRunInvocationSchema,
   applyPatchOpsToBody,
+  localUserIdentityFileName,
+  localUserIdentitySchema,
   parseDraftPatchOps,
+  resolveDevActAsRole,
   type AgentOutput,
   type AgentRunInvocation,
+  type DevActAsRole,
+  type LocalUserIdentity,
   type WorkspaceInteractionMode
 } from "@weki/core";
 import { randomUUID } from "node:crypto";
@@ -11,6 +16,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   applyTwoPhaseDocumentWrite,
@@ -44,6 +50,10 @@ export type OpenWorkspaceResponse = {
   root: string;
   agentServerPort: number;
   defaultMode: WorkspaceInteractionMode;
+  userId: string;
+  displayName: string;
+  mode: "solo";
+  actedAsRole?: DevActAsRole;
 };
 
 export type ReadDocResponse = {
@@ -90,13 +100,16 @@ export type DesktopWorkspaceSessionOptions = {
   agentServerCwd?: string;
   watcherDebounceMs?: number;
   startAgentServer?: boolean;
+  env?: NodeJS.ProcessEnv;
+  nodeEnv?: string;
+  devActAsRole?: DevActAsRole;
 };
 
 class MemoryDesktopDocumentStore implements WorkspaceDocumentStore {
   readonly documents = new Map<string, WorkspaceDocumentRecord>();
   readonly versions: DocumentVersionInput[] = [];
   readonly conflicts: WorkspaceSyncConflict[] = [];
-  readonly auditLog: { action: string; docId: string; payload: Record<string, unknown> }[] = [];
+  readonly auditLog: { action: string; docId: string; actorUserId?: string; actedAsRole?: DevActAsRole; payload: Record<string, unknown> }[] = [];
 
   addDocument(input: Omit<WorkspaceDocumentRecord, "bodySha256"> & { bodySha256?: string }): WorkspaceDocumentRecord {
     const document = {
@@ -118,7 +131,7 @@ class MemoryDesktopDocumentStore implements WorkspaceDocumentStore {
     docId: string,
     update: (current: WorkspaceDocumentRecord) => WorkspaceDocumentRecord,
     action: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown> & { actor_user_id?: string; acted_as_role?: DevActAsRole }
   ): WorkspaceDocumentRecord {
     const current = this.documents.get(docId);
     if (!current) {
@@ -133,7 +146,13 @@ class MemoryDesktopDocumentStore implements WorkspaceDocumentStore {
     });
     const updated = update(current);
     this.documents.set(docId, updated);
-    this.auditLog.push({ action, docId, payload });
+    this.auditLog.push({
+      action,
+      docId,
+      actorUserId: payload.actor_user_id,
+      actedAsRole: payload.acted_as_role,
+      payload
+    });
     return updated;
   }
 
@@ -234,6 +253,8 @@ export class DesktopWorkspaceSession {
   private agentProcess?: AgentServerProcess;
   private workspaceRoot?: string;
   private workspaceId?: string;
+  private identity?: LocalUserIdentity;
+  private actedAsRole?: DevActAsRole;
   private agentServerPort?: number;
   private readonly selfWriteShas = new Map<string, Set<string>>();
 
@@ -243,7 +264,10 @@ export class DesktopWorkspaceSession {
       startAgentServer: options.startAgentServer ?? true,
       agentServerCommand: options.agentServerCommand,
       agentServerArgs: options.agentServerArgs,
-      agentServerCwd: options.agentServerCwd
+      agentServerCwd: options.agentServerCwd,
+      env: options.env,
+      nodeEnv: options.nodeEnv,
+      devActAsRole: options.devActAsRole
     };
   }
 
@@ -256,9 +280,16 @@ export class DesktopWorkspaceSession {
     const root = path.resolve(workspaceRoot);
     await mkdir(path.join(root, ".weki"), { recursive: true });
     const defaultMode = await ensureWorkspaceAgentsFile(root);
+    const identity = await ensureLocalUserIdentity(root);
+    const actedAsRole = resolveDevActAsRole({
+      value: this.options.devActAsRole ?? this.options.env?.WEKI_DEV_AS_ROLE,
+      isProduction: (this.options.nodeEnv ?? this.options.env?.NODE_ENV ?? process.env.NODE_ENV) === "production"
+    });
 
     this.workspaceRoot = root;
     this.workspaceId = randomUUID();
+    this.identity = identity;
+    this.actedAsRole = actedAsRole;
     this.store = new MemoryDesktopDocumentStore();
     this.mirror = new NodeWorkspaceFileMirror(root);
     await this.loadExistingMarkdown(root);
@@ -267,7 +298,11 @@ export class DesktopWorkspaceSession {
       this.agentProcess = await startAgentServerProcess({
         command: this.options.agentServerCommand,
         args: this.options.agentServerArgs,
-        cwd: this.options.agentServerCwd
+        cwd: this.options.agentServerCwd,
+        userId: identity.userId,
+        actedAsRole,
+        env: this.options.env,
+        nodeEnv: this.options.nodeEnv
       });
       this.agentServerPort = this.agentProcess.port;
     } else {
@@ -285,7 +320,11 @@ export class DesktopWorkspaceSession {
       workspaceId: this.workspaceId,
       root,
       agentServerPort: this.agentServerPort,
-      defaultMode
+      defaultMode,
+      userId: identity.userId,
+      displayName: identity.displayName,
+      mode: "solo",
+      actedAsRole
     };
   }
 
@@ -328,6 +367,13 @@ export class DesktopWorkspaceSession {
       rev: 1,
       lastEditor: "human"
     });
+    store.auditLog.push({
+      action: "manual.create_doc",
+      docId: document.id,
+      actorUserId: this.requireIdentity().userId,
+      actedAsRole: this.actedAsRole,
+      payload: this.auditPayload({ path: document.path })
+    });
     this.suppressSelfWrite(document.path, [document.bodySha256]);
     await mirror.writeDocumentAtomically(document.path, document.body, document.id);
     this.emit({
@@ -345,7 +391,7 @@ export class DesktopWorkspaceSession {
       created.id,
       (doc) => ({ ...doc, kind: "index", title: titleFromDocumentPath(folderPath) }),
       "manual.create_folder",
-      { path: folderPath, index_path: indexPath }
+      this.auditPayload({ path: folderPath, index_path: indexPath })
     );
   }
 
@@ -367,7 +413,7 @@ export class DesktopWorkspaceSession {
         lastEditor: "human"
       }),
       "manual.rename",
-      { old_path: oldPath, new_path: newPath, title: input.title }
+      this.auditPayload({ old_path: oldPath, new_path: newPath, title: input.title })
     );
     this.suppressSelfWrite(updated.path, [updated.bodySha256]);
     if (oldPath !== updated.path) {
@@ -390,7 +436,7 @@ export class DesktopWorkspaceSession {
       current.id,
       (doc) => ({ ...doc, path: newPath, rev: doc.rev + 1, lastEditor: "human" }),
       "manual.move",
-      { old_path: oldPath, new_path: newPath }
+      this.auditPayload({ old_path: oldPath, new_path: newPath })
     );
     this.suppressSelfWrite(updated.path, [updated.bodySha256]);
     if (oldPath !== updated.path) {
@@ -420,7 +466,7 @@ export class DesktopWorkspaceSession {
         tags: [...(current.tags ?? [])]
       }),
       "manual.duplicate",
-      { source_doc_id: current.id, path: duplicatePath }
+      this.auditPayload({ source_doc_id: current.id, path: duplicatePath })
     );
     return updated;
   }
@@ -441,7 +487,7 @@ export class DesktopWorkspaceSession {
       archived.id,
       (doc) => ({ ...doc, archivedFrom: current.path, path: archivePath }),
       "manual.archive",
-      { old_path: current.path, archive_path: archivePath }
+      this.auditPayload({ old_path: current.path, archive_path: archivePath })
     );
   }
 
@@ -456,7 +502,7 @@ export class DesktopWorkspaceSession {
       current.id,
       (doc) => ({ ...doc, path: restorePath, archivedFrom: undefined, rev: doc.rev + 1, lastEditor: "human" }),
       "manual.restore",
-      { restore_path: restorePath }
+      this.auditPayload({ restore_path: restorePath })
     );
     this.suppressSelfWrite(restored.path, [restored.bodySha256]);
     if (oldPath !== restored.path) {
@@ -480,7 +526,7 @@ export class DesktopWorkspaceSession {
         lastEditor: "human"
       }),
       "manual.metadata",
-      { metadata: input.metadata }
+      this.auditPayload({ metadata: input.metadata })
     );
     this.emit({ type: "doc_changed", payload: { doc_id: updated.id, rev: updated.rev, source: "human" } });
     return updated;
@@ -492,7 +538,7 @@ export class DesktopWorkspaceSession {
       workspaceId: this.requireWorkspaceId(),
       agentId: "draft",
       input: input.prompt.startsWith("/") ? input.prompt : `/draft ${input.prompt}`.trim(),
-      invokedBy: input.invokedBy,
+      invokedBy: input.invokedBy ?? this.requireIdentity().userId,
       context: {
         docId: document.id,
         path: document.path,
@@ -562,6 +608,13 @@ export class DesktopWorkspaceSession {
     });
 
     if (result.status === "applied") {
+      this.requireStore().auditLog.push({
+        action: "patch.applied",
+        docId: result.document.id,
+        actorUserId: this.requireIdentity().userId,
+        actedAsRole: this.actedAsRole,
+        payload: this.auditPayload({ run_id: runId })
+      });
       await this.decidePatch(pending.id, "applied");
       this.emit({
         type: "doc_changed",
@@ -643,9 +696,18 @@ export class DesktopWorkspaceSession {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         decision,
-        decidedBy: this.requireWorkspaceId()
+        decidedBy: this.requireIdentity().userId
       })
     });
+  }
+
+  private auditPayload(payload: Record<string, unknown>): Record<string, unknown> & { actor_user_id: string; acted_as_role?: DevActAsRole } {
+    const identity = this.requireIdentity();
+    return {
+      ...payload,
+      actor_user_id: identity.userId,
+      acted_as_role: this.actedAsRole
+    };
   }
 
   private emit(event: DesktopEvent): void {
@@ -682,6 +744,13 @@ export class DesktopWorkspaceSession {
     return this.workspaceId;
   }
 
+  private requireIdentity(): LocalUserIdentity {
+    if (!this.identity) {
+      throw new Error("Workspace is not open.");
+    }
+    return this.identity;
+  }
+
   private requireDocument(docId: string): WorkspaceDocumentRecord {
     const document = this.requireStore().documents.get(docId);
     if (!document) {
@@ -707,6 +776,10 @@ async function startAgentServerProcess(input: {
   command?: string;
   args?: readonly string[];
   cwd?: string;
+  userId: string;
+  actedAsRole?: DevActAsRole;
+  env?: NodeJS.ProcessEnv;
+  nodeEnv?: string;
 }): Promise<AgentServerProcess> {
   const port = await reserveTcpPort();
   const cwd = input.cwd ?? findRepoRoot(process.cwd());
@@ -722,7 +795,7 @@ async function startAgentServerProcess(input: {
     : resolvePnpmInvocation(pnpmArgs);
   const child = spawn(command, args, {
     cwd,
-    env: process.env,
+    env: agentServerEnv(input),
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -735,6 +808,31 @@ async function startAgentServerProcess(input: {
       }
     }
   };
+}
+
+function agentServerEnv(input: {
+  userId: string;
+  actedAsRole?: DevActAsRole;
+  env?: NodeJS.ProcessEnv;
+  nodeEnv?: string;
+}): NodeJS.ProcessEnv {
+  const base = input.env ?? process.env;
+  const isProduction = (input.nodeEnv ?? base.NODE_ENV) === "production";
+  const env: NodeJS.ProcessEnv = {
+    ...base,
+    WEKI_SOLO_USER_ID: input.userId
+  };
+
+  if (!isProduction && input.actedAsRole) {
+    env.WEKI_DEV_AS_ROLE = input.actedAsRole;
+  } else {
+    delete env.WEKI_DEV_AS_ROLE;
+  }
+  if (isProduction) {
+    env.NODE_ENV = "production";
+  }
+
+  return env;
 }
 
 function resolvePnpmInvocation(pnpmArgs: readonly string[]): { command: string; args: string[] } {
@@ -921,6 +1019,30 @@ async function ensureWorkspaceAgentsFile(root: string): Promise<WorkspaceInterac
 
   const body = await readFile(agentsPath, "utf8");
   return parseWorkspaceDefaultMode(body);
+}
+
+async function ensureLocalUserIdentity(root: string): Promise<LocalUserIdentity> {
+  const userPath = path.join(root, ".weki", localUserIdentityFileName);
+
+  if (existsSync(userPath)) {
+    try {
+      const parsed = localUserIdentitySchema.safeParse(JSON.parse(await readFile(userPath, "utf8")));
+      if (parsed.success) {
+        return parsed.data;
+      }
+    } catch {
+      // A corrupt local identity is rebuilt below and kept local to this workspace.
+    }
+  }
+
+  const identity = localUserIdentitySchema.parse({
+    version: 1,
+    userId: randomUUID(),
+    displayName: os.userInfo().username || "Solo",
+    provisionedAt: new Date().toISOString()
+  });
+  await writeFile(userPath, `${JSON.stringify(identity, null, 2)}\n`, "utf8");
+  return identity;
 }
 
 function parseWorkspaceDefaultMode(body: string): WorkspaceInteractionMode {

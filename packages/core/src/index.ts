@@ -1,6 +1,7 @@
 import { z } from "zod";
 export * from "./agent.js";
 export * from "./domain.js";
+export * from "./identity.js";
 export * from "./patch.js";
 export * from "./slash/index.js";
 

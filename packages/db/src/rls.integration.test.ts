@@ -20,6 +20,11 @@ async function setActorContext(client: pg.Client, userId: string): Promise<void>
   await query(client, "SET LOCAL row_security = on");
 }
 
+async function setDevActAsRole(client: pg.Client, role: "owner" | "admin" | "editor" | "reader"): Promise<void> {
+  await setLocalConfig(client, "app.dev_act_as_enabled", "true");
+  await setLocalConfig(client, "app.role_override", role);
+}
+
 describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
   let client: pg.Client;
   const ids = {
@@ -122,6 +127,34 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     expect(write.rows[0]?.updated).toBe(false);
     const audit = await query(client, "SELECT action FROM audit_log WHERE action = 'write_denied'");
     expect(audit.rowCount).toBe(1);
+    await query(client, "ROLLBACK");
+  });
+
+  it("lets dev act-as override RLS without changing the stored Solo membership", async () => {
+    await query(client, "BEGIN");
+    await setActorContext(client, ids.reader);
+    await setDevActAsRole(client, "editor");
+
+    const write = await query(client, "SELECT app_update_document_body($1, 1, 'reader acting as editor') AS updated", [ids.doc]);
+    expect(write.rows[0]?.updated).toBe(true);
+
+    const membership = await query(client, "SELECT role FROM memberships WHERE user_id = $1", [ids.reader]);
+    expect(membership.rows[0]?.role).toBe("reader");
+    const audit = await query(client, "SELECT actor_id, payload FROM audit_log WHERE action = 'document.updated' ORDER BY id DESC LIMIT 1");
+    expect(audit.rows[0]?.actor_id).toBe(ids.reader);
+    expect(audit.rows[0]?.payload).toMatchObject({ acted_as_role: "editor", actor_user_id: ids.reader });
+    await query(client, "ROLLBACK");
+  });
+
+  it("keeps dev act-as scoped to workspaces where the user is a member", async () => {
+    await query(client, "BEGIN");
+    await setActorContext(client, ids.outsider);
+    await setDevActAsRole(client, "owner");
+
+    const read = await query(client, "SELECT id FROM documents WHERE id = $1", [ids.doc]);
+    expect(read.rowCount).toBe(0);
+    const write = await query(client, "SELECT app_update_document_body($1, 1, 'outsider acting as owner') AS updated", [ids.doc]);
+    expect(write.rows[0]?.updated).toBe(false);
     await query(client, "ROLLBACK");
   });
 

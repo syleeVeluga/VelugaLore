@@ -27,6 +27,13 @@ import { runDraftAgent } from "./draft-agent.js";
 import { runImproveAgent } from "./improve-agent.js";
 import { runIngestAgent } from "./ingest-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
+import {
+  applyAgentSessionSqlContext,
+  requestActAsRoleFromHeader,
+  resolveAgentSessionContext,
+  type AgentSessionContext,
+  type AgentSessionSqlClient
+} from "./session.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" } as const;
@@ -36,13 +43,19 @@ export type AgentDaemonOptions = {
   store?: AgentRunStore;
   approvalStore?: PatchApprovalStore;
   toolRuntime?: ToolRuntime;
+  session?: {
+    userId?: string;
+    env?: NodeJS.ProcessEnv;
+    nodeEnv?: string;
+    sqlClient?: AgentSessionSqlClient;
+  };
 };
 
 export type AgentDaemon = {
   store: AgentRunStore;
   approvalStore: PatchApprovalStore;
   server: http.Server;
-  runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
+  runAgent(invocation: AgentRunInvocation, context?: AgentSessionContext): Promise<StoredAgentRun>;
   runEcho(invocation: AgentRunInvocation): Promise<StoredAgentRun>;
 };
 
@@ -79,6 +92,7 @@ function serializePatch(patch: StoredPatchApproval): Record<string, unknown> {
     previewHtml: patch.previewHtml,
     status: patch.status,
     decidedBy: patch.decidedBy,
+    actedAsRole: patch.actedAsRole,
     decidedAt: patch.decidedAt?.toISOString()
   };
 }
@@ -111,8 +125,26 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
   const approvalStore = options.approvalStore ?? new InMemoryPatchApprovalStore();
   const toolRuntime = options.toolRuntime ?? new ToolRuntime({});
 
-  async function runAgent(invocation: AgentRunInvocation): Promise<StoredAgentRun> {
-    const parsedInvocation = agentRunInvocationSchema.parse(invocation);
+  function resolveContext(request?: IncomingMessage): AgentSessionContext {
+    return resolveAgentSessionContext({
+      env: options.session?.env,
+      nodeEnv: options.session?.nodeEnv,
+      userId: options.session?.userId,
+      requestActAsRole: requestActAsRoleFromHeader(request?.headers["x-weki-dev-as-role"])
+    });
+  }
+
+  async function applySqlContext(context: AgentSessionContext): Promise<void> {
+    if (options.session?.sqlClient) {
+      await applyAgentSessionSqlContext(options.session.sqlClient, context);
+    }
+  }
+
+  async function runAgent(invocation: AgentRunInvocation, context = resolveContext()): Promise<StoredAgentRun> {
+    const parsedInvocation = agentRunInvocationSchema.parse({
+      ...invocation,
+      invokedBy: invocation.invokedBy ?? context.userId
+    });
 
     try {
       if (parsedInvocation.agentId === "draft") {
@@ -186,6 +218,8 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     try {
       const method = request.method ?? "GET";
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      const context = resolveContext(request);
+      await applySqlContext(context);
 
       if (method === "GET" && url.pathname === "/health") {
         sendJson(response, 200, { status: "ok" });
@@ -217,7 +251,7 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       if (method === "POST" && url.pathname === "/runs") {
         const body = agentRunInvocationSchema.parse(await readBody(request));
-        const run = await runAgent(body);
+        const run = await runAgent(body, context);
         sendJson(response, run.status === "succeeded" ? 201 : 400, serializeRun(run));
         return;
       }
@@ -235,8 +269,8 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       const patchDecisionMatch = url.pathname.match(/^\/patches\/([0-9a-fA-F-]{36})\/decision$/);
       if (method === "POST" && patchDecisionMatch) {
-        const body = (await readBody(request)) as { decision?: ApprovalDecision; decidedBy?: string; rationale?: string };
-        if (!body.decision || !body.decidedBy) {
+        const body = (await readBody(request)) as { decision?: ApprovalDecision; rationale?: string };
+        if (!body.decision) {
           sendJson(response, 400, { error: "INVALID_PATCH_DECISION" });
           return;
         }
@@ -244,7 +278,8 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
         const patch = await approvalStore.decide({
           id: patchDecisionMatch[1],
           decision,
-          decidedBy: body.decidedBy,
+          decidedBy: context.userId,
+          actedAsRole: context.actedAsRole,
           rationale: body.rationale
         });
         sendJson(response, 200, serializePatch(patch));

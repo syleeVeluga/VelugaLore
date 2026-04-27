@@ -46,7 +46,7 @@ button:disabled {
 
 .titlebar {
   display: grid;
-  grid-template-columns: 150px minmax(280px, 1fr) auto auto auto;
+  grid-template-columns: 150px minmax(280px, 1fr) auto auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -84,6 +84,23 @@ button:disabled {
 
 .mode-chip.analyze {
   background: #e6ebef;
+}
+
+.dev-act-as {
+  display: grid;
+  grid-template-columns: max-content minmax(96px, auto);
+  align-items: center;
+  gap: 6px;
+  color: #52616f;
+}
+
+.dev-act-as select {
+  height: 32px;
+  border: 1px solid #c8d1d8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2933;
+  padding: 0 8px;
 }
 
 .workspace-grid {

@@ -289,6 +289,15 @@ CREATE OR REPLACE FUNCTION app_user_id() RETURNS uuid AS $$
   SELECT nullif(current_setting('app.user_id', true), '')::uuid;
 $$ LANGUAGE sql STABLE;
 
+CREATE OR REPLACE FUNCTION app_role_override() RETURNS text AS $$
+  SELECT CASE
+    WHEN current_setting('app.dev_act_as_enabled', true) = 'true'
+      AND current_setting('app.role_override', true) IN ('owner','admin','editor','reader')
+    THEN current_setting('app.role_override', true)
+    ELSE NULL
+  END;
+$$ LANGUAGE sql STABLE;
+
 CREATE OR REPLACE FUNCTION current_user_org_ids() RETURNS uuid[] AS $$
   SELECT coalesce(array_agg(org_id), ARRAY[]::uuid[])
   FROM memberships
@@ -296,14 +305,14 @@ CREATE OR REPLACE FUNCTION current_user_org_ids() RETURNS uuid[] AS $$
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_role_for_org(target_org_id uuid) RETURNS text AS $$
-  SELECT role
-  FROM memberships
-  WHERE org_id = target_org_id
-    AND user_id = app_user_id();
+  SELECT coalesce(app_role_override(), m.role)
+  FROM memberships m
+  WHERE m.org_id = target_org_id
+    AND m.user_id = app_user_id();
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION app_role_for_workspace(target_workspace_id uuid) RETURNS text AS $$
-  SELECT m.role
+  SELECT coalesce(app_role_override(), m.role)
   FROM memberships m
   JOIN workspaces w ON w.org_id = m.org_id
   WHERE w.id = target_workspace_id
@@ -338,7 +347,12 @@ BEGIN
     'write_denied',
     target_kind,
     target_id,
-    jsonb_build_object('attempted_action', attempted_action, 'details', details)
+    jsonb_build_object(
+      'attempted_action', attempted_action,
+      'details', details,
+      'actor_user_id', app_user_id(),
+      'acted_as_role', app_role_override()
+    )
   );
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
@@ -386,6 +400,22 @@ BEGIN
 
   INSERT INTO doc_versions (doc_id, rev, body, body_sha256, frontmatter, source)
     VALUES (target_doc_id, previous_rev + 1, new_body, digest(new_body, 'sha256'), previous_frontmatter, actor);
+
+  INSERT INTO audit_log (workspace_id, actor_kind, actor_id, action, target_kind, target_id, payload)
+  VALUES (
+    target_workspace,
+    'user',
+    coalesce(app_user_id()::text, 'anonymous'),
+    'document.updated',
+    'document',
+    target_doc_id::text,
+    jsonb_build_object(
+      'actor_user_id', app_user_id(),
+      'acted_as_role', app_role_override(),
+      'actor', actor,
+      'rev', previous_rev + 1
+    )
+  );
 
   RETURN true;
 END
@@ -446,7 +476,12 @@ BEGIN
     END,
     'patch',
     target_patch_id::text,
-    jsonb_build_object('decision', decision, 'rationale', rationale)
+    jsonb_build_object(
+      'decision', decision,
+      'rationale', rationale,
+      'actor_user_id', app_user_id(),
+      'acted_as_role', app_role_override()
+    )
   );
 
   RETURN true;
