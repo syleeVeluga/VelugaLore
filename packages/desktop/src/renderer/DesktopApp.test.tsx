@@ -17,6 +17,26 @@ describe("S-08.5 renderer shell", () => {
   });
 });
 
+describe("S-09b manual file ops UI", () => {
+  it("exposes Rename and Move to buttons in the file actions bar", () => {
+    const html = renderToString(<DesktopApp api={fakeApi} />);
+    expect(html).toContain("Rename");
+    expect(html).toContain("Move to");
+  });
+
+  it("renders the drop hint so users discover drag-to-move", () => {
+    const html = renderToString(<DesktopApp api={fakeApi} />);
+    expect(html).toContain("Drop on a file");
+  });
+
+  it("localizes the manual file ops in Korean", () => {
+    const html = renderToString(<DesktopApp api={fakeApi} locale="ko" />);
+    expect(html).toContain("이름 변경");
+    expect(html).toContain("이동");
+    expect(html).toContain("다른 파일 위에 놓아");
+  });
+});
+
 const fakeApi: DesktopApi = {
   async pickWorkspaceDirectory() {
     return undefined;
