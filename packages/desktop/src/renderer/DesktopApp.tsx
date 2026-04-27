@@ -1,5 +1,5 @@
 import { renderSlashMenuItems } from "@weki/editor";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import type { ApplyPatchResponse, PendingApproval } from "../desktop-session.js";
 import type { WorkspaceDocumentRecord } from "../workspace-sync.js";
 import type { DesktopApi } from "./desktop-api.js";
@@ -11,7 +11,24 @@ type DesktopAppProps = {
   locale?: DesktopLocale;
 };
 
+type PendingFileAction =
+  | { kind: "rename"; value: string }
+  | { kind: "move"; value: string };
+
 const defaultWorkspacePath = "";
+
+function folderOfPath(docPath: string): string {
+  const idx = docPath.lastIndexOf("/");
+  return idx === -1 ? "." : docPath.slice(0, idx);
+}
+
+function defaultRenameValue(doc: WorkspaceDocumentRecord): string {
+  if (doc.title) {
+    return doc.title;
+  }
+  const base = doc.path.split("/").pop() ?? doc.path;
+  return base.replace(/\.md$/, "");
+}
 
 export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   const t = useMemo(() => createDesktopTranslator(locale), [locale]);
@@ -24,6 +41,8 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   const [activeRunId, setActiveRunId] = useState<string>();
   const [status, setStatus] = useState(t("desktop.status.ready"));
   const [mode, setMode] = useState<"analyze" | "edit">("edit");
+  const [pendingFileAction, setPendingFileAction] = useState<PendingFileAction | null>(null);
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
 
   const slashItems = useMemo(() => {
     const line = body.split(/\r?\n/).at(-1) ?? "";
@@ -123,6 +142,85 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
     await refreshDocuments(updated.id);
   }
 
+  function beginRenameActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    setPendingFileAction({ kind: "rename", value: defaultRenameValue(activeDoc) });
+  }
+
+  function beginMoveActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    setPendingFileAction({ kind: "move", value: folderOfPath(activeDoc.path) });
+  }
+
+  function cancelPendingFileAction() {
+    setPendingFileAction(null);
+  }
+
+  async function commitPendingFileAction() {
+    if (!pendingFileAction || !activeDoc) {
+      return;
+    }
+    if (pendingFileAction.kind === "rename") {
+      const trimmed = pendingFileAction.value.trim();
+      if (!trimmed) {
+        return;
+      }
+      const renamed = await api.renameDoc(activeDoc.id, trimmed);
+      setStatus(t("desktop.status.saved"));
+      setPendingFileAction(null);
+      await refreshDocuments(renamed.id);
+      return;
+    }
+    const folder = pendingFileAction.value.trim().replace(/^\/+|\/+$/g, "") || ".";
+    const moved = await api.moveDoc(activeDoc.id, folder);
+    setStatus(t("desktop.status.saved"));
+    setPendingFileAction(null);
+    await refreshDocuments(moved.id);
+  }
+
+  function handleDragStart(docId: string) {
+    return (event: DragEvent<HTMLLIElement>) => {
+      if (mode === "analyze") {
+        event.preventDefault();
+        return;
+      }
+      setDraggingDocId(docId);
+      event.dataTransfer.setData("text/plain", docId);
+      event.dataTransfer.effectAllowed = "move";
+    };
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLIElement>) {
+    if (mode === "analyze") {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function handleDrop(targetDoc: WorkspaceDocumentRecord) {
+    return async (event: DragEvent<HTMLLIElement>) => {
+      event.preventDefault();
+      const droppedId = event.dataTransfer.getData("text/plain") || draggingDocId;
+      setDraggingDocId(null);
+      if (!droppedId || droppedId === targetDoc.id || mode === "analyze") {
+        return;
+      }
+      const folder = folderOfPath(targetDoc.path);
+      const moved = await api.moveDoc(droppedId, folder === "." ? "." : folder);
+      setStatus(t("desktop.status.saved"));
+      await refreshDocuments(moved.id);
+    };
+  }
+
+  function handleDragEnd() {
+    setDraggingDocId(null);
+  }
+
   async function openDoc(docId: string) {
     const doc = documents.find((item) => item.id === docId);
     if (!doc) {
@@ -193,6 +291,12 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
             <button type="button" onClick={createFolder} disabled={!workspaceRoot || mode === "analyze"}>
               {t("desktop.files.newFolder")}
             </button>
+            <button type="button" onClick={beginRenameActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.rename")}
+            </button>
+            <button type="button" onClick={beginMoveActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.moveTo")}
+            </button>
             <button type="button" onClick={duplicateActiveDoc} disabled={!activeDoc || mode === "analyze"}>
               {t("desktop.files.duplicate")}
             </button>
@@ -206,12 +310,58 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
               {t("desktop.files.tags")}
             </button>
           </div>
+          {pendingFileAction ? (
+            <form
+              className="file-action-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void commitPendingFileAction();
+              }}
+            >
+              <input
+                aria-label={
+                  pendingFileAction.kind === "rename"
+                    ? t("desktop.files.renamePlaceholder")
+                    : t("desktop.files.movePlaceholder")
+                }
+                placeholder={
+                  pendingFileAction.kind === "rename"
+                    ? t("desktop.files.renamePlaceholder")
+                    : t("desktop.files.movePlaceholder")
+                }
+                value={pendingFileAction.value}
+                onChange={(event) =>
+                  setPendingFileAction(
+                    pendingFileAction.kind === "rename"
+                      ? { kind: "rename", value: event.target.value }
+                      : { kind: "move", value: event.target.value }
+                  )
+                }
+                autoFocus
+              />
+              <div className="file-action-form-buttons">
+                <button type="submit">{t("desktop.files.confirm")}</button>
+                <button type="button" onClick={cancelPendingFileAction}>
+                  {t("desktop.files.cancel")}
+                </button>
+              </div>
+            </form>
+          ) : null}
+          <div className="file-drop-hint">{t("desktop.files.dropHint")}</div>
           {documents.length === 0 ? (
             <div className="empty-state">{workspaceRoot ? t("desktop.files.empty") : t("desktop.workspace.empty")}</div>
           ) : (
             <ol className="file-list">
               {documents.map((doc) => (
-                <li key={doc.id}>
+                <li
+                  key={doc.id}
+                  draggable={mode === "edit"}
+                  onDragStart={handleDragStart(doc.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop(doc)}
+                  onDragEnd={handleDragEnd}
+                  className={draggingDocId === doc.id ? "dragging" : undefined}
+                >
                   <button
                     type="button"
                     className={doc.id === activeDoc?.id ? "selected" : undefined}
