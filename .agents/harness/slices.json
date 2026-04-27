@@ -131,13 +131,40 @@
       "acceptance": ["A11"]
     },
     {
-      "id": "S-12",
-      "title": "RBAC and multi-user mode",
+      "id": "S-12a",
+      "title": "Solo session identity and dev act-as toggle",
+      "milestone": "M2.5",
+      "primary_agents": ["db-rbac-engineer", "editor-product-engineer"],
+      "subagents": ["security-approval-check"],
+      "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md", "PRD/15-acceptance-criteria.md"],
+      "dod": [
+        "Solo mode is the default for newly opened workspaces with no login UI",
+        "agent-server middleware sets app.user_id from a single local user identity per session and existing RLS policies remain enforced",
+        "Local user identity is provisioned once per workspace and persisted under .weki/user.json with a stable UUID",
+        "Single Solo user behaves as editor for §11.4.1 default policies (self-patch auto-approve, IA ops still queue)",
+        "Dev-only act-as mechanism (WEKI_DEV_AS_ROLE env var or Tauri dev menu) lets a developer impersonate reader/editor/admin/owner against RLS",
+        "Production builds strip the act-as path and verify it via a build-time guard test",
+        "Audit log records the active user_id (Solo identity or impersonated role) on every write decision"
+      ],
+      "acceptance": ["S3"]
+    },
+    {
+      "id": "S-12b",
+      "title": "Team and Enterprise multi-user mode",
       "milestone": "M3",
-      "primary_agents": ["db-rbac-engineer"],
+      "primary_agents": ["db-rbac-engineer", "editor-product-engineer"],
       "subagents": ["security-approval-check"],
       "prd": ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-criteria.md"],
-      "dod": ["reader/editor/admin/owner permissions match matrix", "write denial is audited", "session user is set for RLS", "mode settings cover Solo Team Enterprise"],
+      "dod": [
+        "Team mode toggle from Solo without data migration (single Solo user becomes the first owner)",
+        "OAuth login (GitHub or Google) for Team mode",
+        "SAML 2.0 / OIDC and SCIM provisioning for Enterprise mode",
+        "Member management UI (invite, role change, remove) gated by owner role",
+        "reader/editor/admin/owner permissions match the §11.3 matrix in integration tests",
+        "Write denial is audited and surfaced in audit_log",
+        "IP allowlist and session policy controls are configurable in Enterprise mode",
+        "Audit export command works for admin role"
+      ],
       "acceptance": ["C1", "S3"]
     },
     {

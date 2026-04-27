@@ -46,7 +46,8 @@ last_updated: 2026-04-26
 | **S-09b** | **CurateAgent (코어 5) + IA 변경 op + 수동 페이지/폴더 관리** | §5.1, §3.5, §7.1.2, §8.4.1 | `/curate scope:wiki/policies` 가 split/merge/move/adopt_orphan 제안, approval 후 적용. 사용자는 파일트리에서 페이지/폴더 생성·이름변경·이동·복제·보관·복원을 직접 수행. 한 run 통째로 revert, doc_versions 보존, 백링크 자동 재배치 100% |
 | **S-10** | 시스템 작업: find + diff/blame/revert + lint | §5.2, §4.3.3 | 1만 노드 검색 p50 ≤ 500ms, doc_versions 비교, 한 줄 blame 100%, 깨진 링크 검출 |
 | **S-11** | Markdown LSP 진단 + 분석↔편집 모드 토글 | §7.6, §10 | 1만 노드에서 빨간 밑줄 ≤ 200ms, 신규 workspace 는 analyze 기본 |
-| **S-12** | RBAC + 멀티유저 | §11.2-3 | 권한 위반 통합테스트 100% |
+| **S-12a** | Solo 세션 정체성 + dev act-as 토글 | §11.2-3, §13.8 | Solo 모드 디폴트, `app.user_id` 미들웨어 + RLS 유지, dev-only 역할 임퍼소네이션, 프로덕션 빌드에서 act-as 경로 strip |
+| **S-12b** | Team/Enterprise 멀티유저 (SSO/SCIM/멤버 UI) | §11.2-3 | 권한 위반 통합테스트 100%, OAuth/SAML/SCIM, Solo→Team 무이주 전환 |
 | **S-13** | Web app v1 (read-mostly) | §4.2 | 데스크톱과 동일 workspace 를 브라우저에서 read+질의 |
 | **S-14a** | **확장 인프라 T1+T2** (Skill / 마크다운 정의 에이전트) | §10.2.1, §10.2.2 | `workspace/.weki/skills/` 와 `agents/` 의 SKILL.md / `<id>.md` 만으로 신규 슬래시 명령 동작, 코드 0줄 검증 |
 | **S-14b** | **확장 인프라 T3** (플러그인 SDK + 샘플 플러그인) | §10.2.3 | `tone-coach` 샘플이 마켓 매니페스트로 로드, 권한 화이트리스트 강제 |
@@ -404,4 +405,91 @@ S-08.5 머지 후:
 - **S-09b (Curate)** — IA 변경 preview를 셸의 우측 패널에서 시각 검증.
 - **S-10/S-11** — 검색 UI, LSP 진단 밑줄을 같은 셸에 추가.
 - **S-13 (Web v1)** — 본 슬라이스가 정한 IPC 표면을 HTTP API로 미러링. Web과 Desktop이 공유하는 *UI primitive set* 의 출발선.
+
+---
+
+## 13.8 S-12a · Solo 세션 정체성 + dev act-as 토글 / Solo identity & dev impersonation deep dive
+
+> **이 절은 S-12a 슬라이스의 *상세 명세* 다.** 원래 S-12 (RBAC + 멀티유저) 한 덩어리는 (a) 단일 사용자 Solo 모드의 세션 정체성 인프라 + 개발용 임퍼소네이션 토글 (S-12a) 과 (b) Team/Enterprise SSO·SCIM·멤버 UI (S-12b) 로 분할된다 (§14.2). S-12a 의 목적은 **로그인 UI 없이도 RLS 가 제대로 발화하도록 만들고, 개발자가 역할별 분기 UI 를 로그인 없이 검증할 수 있게 만드는 것**.
+
+### 13.8.1 배경 / Why split
+
+S-09b 의 수동 페이지 관리·승인 큐, S-10 의 read agents 권한, S-11 의 분석 모드 토글 등은 모두 권한별 분기를 가진다. 그런데 S-12 원안은 SSO·SCIM·멤버 UI 까지 한 덩어리라 M3 까지 미뤄져, 그 사이 슬라이스들이 *권한 분기를 손으로 검증할 방법이 없는* 상태였다. 동시에 P-IND 페르소나의 Solo 모드는 §11.2 에 이미 *RBAC 비활성, single user* 로 정의되어 있어, **인증 흐름 없이도 v1 가치가 성립**한다. 이 둘을 갈라 Solo 인프라를 먼저 닫고 Team/Enterprise 는 M3 그대로 둔다.
+
+### 13.8.2 범위 / Scope
+
+#### IN scope
+
+1. **Solo 모드 디폴트** — 새 workspace 를 열면 Solo 모드. UI 에 로그인 화면이 없다. §11.2 의 Solo 행이 디폴트.
+2. **로컬 사용자 정체성 provisioning** — workspace 첫 오픈 시 `.weki/user.json` 에 `{ user_id: <UUID>, display_name: <OS user name> }` 1회 생성. 이후 같은 workspace 의 모든 세션이 이 UUID 를 사용. 유저가 직접 편집해 표시명만 바꿀 수 있음.
+3. **`agent-server` 미들웨어** — 모든 HTTP/SSE 요청 시작 시 `SET LOCAL app.user_id = $solo_user_id` 를 실행. 기존 RLS 정책(§11.3.1)은 그대로 발화. Solo 사용자는 자신이 속한 단일 `memberships` 행을 가지며 role='editor' 로 부트스트랩 (자기 patch 자동승인 §11.4.1).
+4. **Dev-only act-as 토글** — 개발자가 다른 역할을 임퍼소네이션:
+   - 환경변수: `WEKI_DEV_AS_ROLE=reader|editor|admin|owner` (백엔드 미들웨어가 인지)
+   - Tauri dev 메뉴 dropdown: 렌더러에서 변경하면 IPC 로 백엔드에 전달, 다음 요청부터 적용
+   - Solo 사용자의 `memberships.role` 을 *세션 단위로* 임시 오버라이드 (DB 행 자체는 변경 안 함 — `SET LOCAL app.role_override = '<role>'` + RLS 헬퍼 함수가 우선순위 처리)
+5. **Production hard-gate** — 프로덕션 빌드에서 act-as 경로는 dead-code:
+   - 백엔드: `process.env.NODE_ENV === 'production'` 일 때 `WEKI_DEV_AS_ROLE` 무시 + 시작 시 경고 로그
+   - 렌더러: `import.meta.env.DEV` 가드 안에 dev 메뉴 노출
+   - Tauri Rust: dev profile (`tauri dev`) 에서만 메뉴 등록, release profile 은 `#[cfg(not(debug_assertions))]` 로 strip
+   - 빌드-타임 검증 테스트 1건: production 번들에 `WEKI_DEV_AS_ROLE` 문자열이 *없는지* grep
+6. **Audit 정합** — `audit_log.actor_user_id` 는 *임퍼소네이션된* user_id 가 아니라 *실제 Solo 사용자 UUID* 를 기록하되, `metadata.acted_as_role` 에 임퍼소네이션 역할을 별도 기록. 실수로 임퍼소네이션 상태에서 만든 변경을 추적 가능.
+
+#### OUT of scope (S-12b 로)
+
+- 로그인 UI, OAuth/SAML/OIDC.
+- 멤버 초대·역할 변경·제거 UI.
+- SCIM provisioning, IP allowlist, 세션 정책, audit export.
+- Team/Enterprise 모드 토글 UI (단, 데이터 모델은 §11.2 그대로 유지 — Solo 의 single membership 이 Team 의 첫 owner 로 자연스럽게 승격될 수 있어야 함).
+- 다른 사람 patch 적용 권한 분기 (Solo 에는 다른 사람이 없음 — 이 분기 코드는 존재하되 UI 노출은 S-12b).
+
+### 13.8.3 사용자/개발자 흐름 / Flows
+
+**일반 사용자 (P-IND, Solo)**:
+1. 데스크톱 앱 시작 → "Open Workspace" → 빈 폴더 선택.
+2. `.weki/user.json` 자동 생성, `agent-server` 가 해당 UUID 를 세션에 set.
+3. 모든 슬래시 명령은 자기 자신을 editor 로 인식. `/draft` 의 patch 는 §11.4.1 디폴트 정책에 따라 자동 승인. `/curate` 의 IA op 는 자동 승인 *안 함* (D11 — 강화만 가능, 비활성 불가).
+
+**개발자 (역할별 UI 검증)**:
+1. `WEKI_DEV_AS_ROLE=reader pnpm --filter @weki/desktop dev` 또는 dev 메뉴에서 `Reader` 선택.
+2. 슬래시 메뉴에서 `/draft` 시도 → reader 는 write agents 권한 없음 → 거부 + audit_log `write_denied` 행 (C1 검증).
+3. dev 메뉴에서 `Admin` 으로 전환 → 같은 workspace 에서 `/import` 가능, IA op 적용 가능.
+4. dev 메뉴에서 `Solo (자기)` 로 복귀 → 일반 사용자 흐름으로 복귀.
+
+### 13.8.4 DoD / Definition of Done
+
+| 항목 | 게이트 |
+|---|---|
+| Solo 디폴트 | 새 workspace 첫 오픈 시 로그인 화면 0회 노출, `.weki/user.json` 1회 생성 |
+| 세션 정체성 미들웨어 | `agent-server` 통합 테스트: 모든 라우트가 `app.user_id` 를 set 하지 않으면 RLS 가 0 행 반환 (회귀 가드) |
+| RLS 정합 | 기존 [packages/db/src/rls.integration.test.ts](packages/db/src/rls.integration.test.ts) 의 `setActorContext` 패턴이 미들웨어 통과한 실제 세션에서도 동일 결과 |
+| §11.4.1 Solo 정책 | Solo 사용자의 `/draft` patch 는 자동 승인, `/curate` IA op 는 항상 큐 (1만 호출 fuzz, A14) |
+| Act-as 토글 | dev 모드에서 4개 역할 모두 임퍼소네이션 가능, 미들웨어가 우선순위 정확 적용 |
+| Production strip | release 빌드 번들 + Rust release binary 에서 act-as 관련 식별자(`WEKI_DEV_AS_ROLE`, dev 메뉴 라벨) 0건 grep |
+| Audit 정합 | 임퍼소네이션 중 발생한 모든 audit_log 행은 `actor_user_id=<Solo UUID>` + `metadata.acted_as_role=<role>` 동시 기록 |
+| Solo→Team 호환 | 추후 S-12b 에서 Solo membership 을 첫 owner 로 승격하는 마이그레이션 dry-run 통과 (스키마 변경 없음, role 만 갱신) |
+
+#### 명시적 OUT of DoD
+
+- 로그인 UI (S-12b).
+- 다중 사용자 시나리오 통합 테스트 (S-12b 의 C1).
+- Solo→Team 모드 전환 *UI* (S-12b).
+
+### 13.8.5 위험과 완화 / Risks
+
+| 위험 | 영향 | 완화 |
+|---|---|---|
+| Act-as 가 프로덕션에 새어나감 | 권한 우회 가능 | 빌드-타임 grep 가드 + Rust `#[cfg(not(debug_assertions))]` 이중 strip + CI 의 release 빌드 산출물 검사 |
+| Solo 사용자가 admin/owner 권한 필요 액션을 시도 | UX 차단 | Solo 모드의 single membership 을 *editor* 로 두되, owner-전용 액션(예: workspace 삭제) 은 Solo 모드에서 자기 자신에게 자동 owner 권한 부여(코드 분기). S-12b 에서 진짜 owner 와 정합 |
+| `.weki/user.json` 손상/이동 | 다른 UUID 로 복귀 시 audit 끊김 | 손상 감지 시 새 UUID 생성 + `audit_log` 에 `identity_rebuilt` 행 1회 + 이전 UUID 기록 |
+| 개발자가 act-as 상태로 실데이터 변경 | 본인이 한 변경인 줄 착각 | UI 상단 노란 배너 "ACTING AS: admin (dev only)" 상시 표시 + audit_log 의 metadata 가 사실 추적 가능 |
+| RLS 가드 회귀 | 한 라우트가 `app.user_id` 안 set | 통합 테스트: `app.user_id` unset 시 어떤 도메인 테이블도 0 행 반환되도록 RLS 정책 보강 (이미 §11.3.1 의 `current_user_org_ids()` 가 unset 시 `NULL` 반환 → `ANY (NULL)` 으로 0 행 — 검증만 추가) |
+
+### 13.8.6 후속 슬라이스에 미치는 영향 / Downstream impact
+
+S-12a 머지 후:
+
+- **S-09b (Curate)** — 수동 페이지 관리 + IA op 승인 큐를 제대로 된 user_id 위에서 검증. `audit_log.actor_user_id` 가 진짜 UUID.
+- **S-10/S-11** — read agents·LSP 진단의 권한 분기 UI 를 dev 메뉴로 손쉽게 검증.
+- **S-12b (Team/Enterprise)** — Solo 의 single membership 을 첫 owner 로 승격, OAuth/SAML 후 `app.user_id` 를 JWT.sub 로 교체하는 swap-in 만 남음. 데이터 모델 변경 0.
+- **S-13 (Web)** — 데스크톱의 Solo 정체성을 그대로 web 의 cookie 세션으로 미러링하지 않음 — web 은 S-12b 이후에 진입하는 것을 가정.
 
