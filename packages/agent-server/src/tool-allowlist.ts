@@ -16,6 +16,7 @@ export const agentToolAllowlists = {
   draft: ["read_doc", "read_neighbors", "search_workspace", "read_style_guide", "read_glossary"],
   improve: ["read_doc", "read_style_guide", "read_glossary", "lint_terms"],
   ask: ["search_workspace", "grep_workspace", "glob_workspace", "read_doc", "read_neighbors", "embed"],
+  ingest: ["read_raw", "ocr", "embed", "web_fetch", "search_workspace", "read_index"],
   echo: []
 } as const satisfies Record<string, readonly string[]>;
 

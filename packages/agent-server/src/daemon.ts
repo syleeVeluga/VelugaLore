@@ -24,6 +24,7 @@ import {
 import { runAskAgent } from "./ask-agent.js";
 import { runDraftAgent } from "./draft-agent.js";
 import { runImproveAgent } from "./improve-agent.js";
+import { runIngestAgent } from "./ingest-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import { ToolNotAllowedError, ToolRuntime } from "./tool-allowlist.js";
 
@@ -135,6 +136,16 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       if (parsedInvocation.agentId === "ask") {
         const patch = runAskAgent(parsedInvocation);
+        const run = await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch
+        });
+        await approvalStore.propose({ run, patch });
+        return run;
+      }
+
+      if (parsedInvocation.agentId === "ingest") {
+        const patch = runIngestAgent(parsedInvocation);
         const run = await store.create(parsedInvocation, {
           status: "succeeded",
           patch

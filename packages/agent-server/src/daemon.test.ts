@@ -6,6 +6,7 @@ import {
   InMemoryPatchApprovalStore,
   PatchDecisionDeniedError,
   runDraftAgent,
+  runIngestAgent,
   SqlAgentRunStore,
   SqlPatchApprovalStore,
   ToolRuntime,
@@ -413,6 +414,54 @@ describe("S-05 agent daemon", () => {
     expect(patch.ops[0]?.kind === "replace_range" ? patch.ops[0].text : "").toContain("executives");
   });
 
+  it("runs IngestAgent directly from raw source context", () => {
+    const patch = runIngestAgent({
+      workspaceId,
+      agentId: "ingest",
+      input: "/ingest path:./inbox/onboarding.md",
+      context: {
+        rawSource: {
+          rawId: "raw-onboarding",
+          uri: "file://./inbox/onboarding.md",
+          mime: "text/markdown",
+          sha256: "abc123",
+          bytes: 128,
+          text: "Onboarding policy defines approvals. The checklist covers security, tools, and manager review."
+        }
+      }
+    });
+
+    expect(patch.outputSchema).toBe("IngestPatch");
+    expect(patch.fanOut.summary).toBe(1);
+    expect(patch.ops.filter((op) => op.kind === "create_doc").length).toBeGreaterThanOrEqual(3);
+    expect(patch.ops.some((op) => op.kind === "append_log")).toBe(true);
+  });
+
+  it("keeps non-Latin ingest topic paths non-empty", () => {
+    const patch = runIngestAgent({
+      workspaceId,
+      agentId: "ingest",
+      input: "/ingest path:./inbox/자료.md",
+      context: {
+        rawSource: {
+          rawId: "raw-korean",
+          uri: "file://./inbox/자료.md",
+          mime: "text/markdown",
+          sha256: "abc123",
+          bytes: 128,
+          text: "온보딩 정책은 승인 절차를 정의합니다. 보안 체크리스트는 도구 검토를 포함합니다."
+        }
+      }
+    });
+
+    const createDocPaths = patch.ops
+      .filter((op) => op.kind === "create_doc")
+      .map((op) => op.path);
+
+    expect(createDocPaths.every((path) => !path.endsWith("/.md"))).toBe(true);
+    expect(createDocPaths.some((path) => /\p{L}/u.test(path))).toBe(true);
+  });
+
   it("runs ImproveAgent for a selection and returns three alternatives", async () => {
     const approvalStore = new InMemoryPatchApprovalStore();
     const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
@@ -508,6 +557,53 @@ describe("S-05 agent daemon", () => {
     expect(queued[0]?.ops[0]).toMatchObject({ kind: "create_doc", docKind: "qa" });
   });
 
+  it("runs IngestAgent and proposes 3-10 raw-derived wiki nodes", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    servers.push(daemon.server);
+    const baseUrl = await listen(daemon.server);
+
+    const created = await fetch(`${baseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspaceId,
+        agentId: "ingest",
+        input: "/ingest path:./inbox/onboarding.md",
+        context: {
+          rawSource: {
+            rawId: "raw-onboarding",
+            uri: "file://./inbox/onboarding.md",
+            mime: "text/markdown",
+            sha256: "abc123",
+            bytes: 128,
+            text: "Onboarding policy defines approvals. The checklist covers security, tools, and manager review."
+          }
+        }
+      })
+    });
+    const run = (await created.json()) as {
+      status: string;
+      patch: {
+        outputSchema: string;
+        ops: Array<{ kind: string; docKind?: string; frontmatter?: { sources?: string[] } }>;
+      };
+    };
+
+    expect(created.status).toBe(201);
+    expect(run.status).toBe("succeeded");
+    expect(run.patch.outputSchema).toBe("IngestPatch");
+    const createDocs = run.patch.ops.filter((op) => op.kind === "create_doc");
+    expect(createDocs.length).toBeGreaterThanOrEqual(3);
+    expect(createDocs.length).toBeLessThanOrEqual(10);
+    expect(createDocs.some((op) => op.docKind === "summary")).toBe(true);
+    expect(createDocs.every((op) => op.frontmatter?.sources?.includes("raw-onboarding"))).toBe(true);
+    expect(run.patch.ops.some((op) => op.kind === "append_log")).toBe(true);
+
+    const queued = await approvalStore.list({ status: "proposed" });
+    expect(queued[0]?.ops.filter((op) => (op as { kind?: string }).kind === "create_doc")).toHaveLength(createDocs.length);
+  });
+
   it("fails tool calls closed when an agent has no explicit allowlist entry", async () => {
     const runtime = new ToolRuntime({
       read_doc: () => ({ body: "secret" })
@@ -540,6 +636,22 @@ describe("S-05 agent daemon", () => {
     await expect(runtime.call("improve", "lint_terms", {})).resolves.toEqual({ violations: [] });
     await expect(runtime.call("ask", "search_workspace", {})).resolves.toEqual({ hits: [] });
     await expect(runtime.call("ask", "web_fetch", {})).rejects.toMatchObject({
+      code: "TOOL_NOT_ALLOWED"
+    });
+  });
+
+  it("allows IngestAgent only its PRD-listed raw and retrieval tools", async () => {
+    const runtime = new ToolRuntime({
+      read_raw: () => ({ body: "raw" }),
+      ocr: () => ({ text: "scanned" }),
+      web_fetch: () => ({ body: "external" }),
+      read_doc: () => ({ body: "doc" })
+    });
+
+    await expect(runtime.call("ingest", "read_raw", {})).resolves.toEqual({ body: "raw" });
+    await expect(runtime.call("ingest", "ocr", {})).resolves.toEqual({ text: "scanned" });
+    await expect(runtime.call("ingest", "web_fetch", {})).resolves.toEqual({ body: "external" });
+    await expect(runtime.call("ingest", "read_doc", {})).rejects.toMatchObject({
       code: "TOOL_NOT_ALLOWED"
     });
   });

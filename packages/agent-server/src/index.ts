@@ -6,6 +6,7 @@ export * from "./approval-store.js";
 export * from "./ask-agent.js";
 export * from "./draft-agent.js";
 export * from "./improve-agent.js";
+export * from "./ingest-agent.js";
 export * from "./run-store.js";
 export * from "./tool-allowlist.js";
 
