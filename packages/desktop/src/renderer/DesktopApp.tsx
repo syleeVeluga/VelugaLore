@@ -40,15 +40,17 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   const [pending, setPending] = useState<PendingApproval[]>([]);
   const [activeRunId, setActiveRunId] = useState<string>();
   const [status, setStatus] = useState(t("desktop.status.ready"));
-  const [mode, setMode] = useState<"analyze" | "edit">("edit");
+  const [mode, setMode] = useState<"analyze" | "edit">("analyze");
+  const [commandLine, setCommandLine] = useState("/");
   const [pendingFileAction, setPendingFileAction] = useState<PendingFileAction | null>(null);
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
 
   const slashItems = useMemo(() => {
-    const line = body.split(/\r?\n/).at(-1) ?? "";
+    const source = mode === "analyze" ? commandLine : body;
+    const line = source.split(/\r?\n/).at(-1) ?? "";
     const match = /(?:^|\s)(\/[A-Za-z0-9_-]*)$/.exec(line);
-    return match ? renderSlashMenuItems(match[1], t) : [];
-  }, [body, t]);
+    return match ? renderSlashMenuItems(match[1], t, mode) : [];
+  }, [body, commandLine, mode, t]);
 
   async function refreshDocuments(nextActiveId?: string) {
     const nextDocuments = await api.listDocuments();
@@ -74,6 +76,7 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
     try {
       const opened = await api.openWorkspace(target);
       setWorkspaceRoot(opened.root);
+      setMode(opened.defaultMode);
       setStatus(t("desktop.status.opened"));
       await refreshDocuments();
     } catch (error) {
@@ -232,7 +235,8 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   }
 
   async function runDraft() {
-    if (!activeDoc) {
+    if (!activeDoc || mode === "analyze") {
+      setStatus(t("desktop.mode.blocked"));
       return;
     }
     setStatus(t("desktop.agent.running"));
@@ -254,6 +258,14 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
     if (result.status === "applied") {
       await refreshDocuments(result.document.id);
     }
+  }
+
+  function chooseSlashItem(label: string) {
+    if (mode === "analyze") {
+      setCommandLine(replaceLastSlashToken(commandLine, label));
+      return;
+    }
+    setBody(replaceLastSlashToken(body, label));
   }
 
   return (
@@ -383,13 +395,39 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
                 <span>
                   {t("desktop.editor.rev")} {activeDoc.rev}
                 </span>
+                <span>{mode === "analyze" ? t("desktop.mode.statusAnalyze") : t("desktop.mode.statusEdit")}</span>
               </div>
+              {mode === "analyze" ? (
+                <label className="command-bar">
+                  <span>{t("desktop.command.label")}</span>
+                  <input
+                    value={commandLine}
+                    onChange={(event) => setCommandLine(event.target.value)}
+                    placeholder={t("desktop.command.placeholder")}
+                  />
+                  {slashItems.length > 0 ? (
+                    <div className="slash-menu command-menu">
+                      {slashItems.slice(0, 5).map((item) => (
+                        <button key={item.label} type="button" onClick={() => chooseSlashItem(item.label)}>
+                          <strong>{item.label}</strong>
+                          <span>{item.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </label>
+              ) : null}
               <div className="editor-wrap">
-                <textarea value={body} onChange={(event) => setBody(event.target.value)} spellCheck={false} />
-                {slashItems.length > 0 ? (
+                <textarea
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  readOnly={mode === "analyze"}
+                  spellCheck={false}
+                />
+                {mode === "edit" && slashItems.length > 0 ? (
                   <div className="slash-menu">
                     {slashItems.slice(0, 5).map((item) => (
-                      <button key={item.label} type="button" onClick={() => setBody(replaceLastSlashToken(body, item.label))}>
+                      <button key={item.label} type="button" onClick={() => chooseSlashItem(item.label)}>
                         <strong>{item.label}</strong>
                         <span>{item.detail}</span>
                       </button>

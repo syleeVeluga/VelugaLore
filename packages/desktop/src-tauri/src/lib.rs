@@ -51,6 +51,7 @@ struct OpenWorkspaceResponse {
     workspace_id: String,
     root: String,
     agent_server_port: u16,
+    default_mode: String,
 }
 
 #[derive(Serialize)]
@@ -101,6 +102,7 @@ async fn open_workspace(
         PathBuf::from(&path).canonicalize()
     }).map_err(|err| err.to_string())?;
     fs::create_dir_all(root.join(".weki")).map_err(|err| err.to_string())?;
+    let default_mode = ensure_workspace_agents_file(&root)?;
 
     let workspace_id = make_uuid_like();
     let agent_server_port = reserve_port()?;
@@ -134,6 +136,7 @@ async fn open_workspace(
         workspace_id,
         root: root.to_string_lossy().to_string(),
         agent_server_port,
+        default_mode,
     })
 }
 
@@ -660,6 +663,34 @@ fn emit_doc_changed(app: &tauri::AppHandle, document: &DocumentRecord, source: &
             source: source.to_string(),
         },
     );
+}
+
+fn ensure_workspace_agents_file(root: &Path) -> Result<String, String> {
+    let agents_path = root.join(".weki").join("AGENTS.md");
+    if !agents_path.exists() {
+        fs::write(
+            &agents_path,
+            "# AGENTS.md - WekiDocs workspace rules\n\n## 0. Default mode\ndefault_mode: analyze\n",
+        )
+        .map_err(|err| err.to_string())?;
+        return Ok("analyze".to_string());
+    }
+
+    let body = fs::read_to_string(&agents_path).map_err(|err| err.to_string())?;
+    Ok(parse_workspace_default_mode(&body).to_string())
+}
+
+fn parse_workspace_default_mode(body: &str) -> &'static str {
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(value) = trimmed.strip_prefix("default_mode:") {
+            let mode = value.split('#').next().unwrap_or("").trim();
+            if mode == "edit" {
+                return "edit";
+            }
+        }
+    }
+    "analyze"
 }
 
 fn write_doc_file_atomically(root: &Path, doc_path: &str, body: &str, doc_id: &str) -> Result<PathBuf, String> {

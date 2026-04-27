@@ -3,13 +3,14 @@ import {
   applyPatchOpsToBody,
   parseDraftPatchOps,
   type AgentOutput,
-  type AgentRunInvocation
+  type AgentRunInvocation,
+  type WorkspaceInteractionMode
 } from "@weki/core";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   applyTwoPhaseDocumentWrite,
@@ -42,6 +43,7 @@ export type OpenWorkspaceResponse = {
   workspaceId: string;
   root: string;
   agentServerPort: number;
+  defaultMode: WorkspaceInteractionMode;
 };
 
 export type ReadDocResponse = {
@@ -253,6 +255,7 @@ export class DesktopWorkspaceSession {
   async openWorkspace(workspaceRoot: string): Promise<OpenWorkspaceResponse> {
     const root = path.resolve(workspaceRoot);
     await mkdir(path.join(root, ".weki"), { recursive: true });
+    const defaultMode = await ensureWorkspaceAgentsFile(root);
 
     this.workspaceRoot = root;
     this.workspaceId = randomUUID();
@@ -281,7 +284,8 @@ export class DesktopWorkspaceSession {
     return {
       workspaceId: this.workspaceId,
       root,
-      agentServerPort: this.agentServerPort
+      agentServerPort: this.agentServerPort,
+      defaultMode
     };
   }
 
@@ -900,6 +904,28 @@ function stripImportFrontmatter(frontmatter: Record<string, unknown> | undefined
 
 function hasIncomingLinks(_store: MemoryDesktopDocumentStore, _docId: string): boolean {
   return false;
+}
+
+const DEFAULT_WORKSPACE_AGENTS_MD = `# AGENTS.md - WekiDocs workspace rules
+
+## 0. Default mode
+default_mode: analyze
+`;
+
+async function ensureWorkspaceAgentsFile(root: string): Promise<WorkspaceInteractionMode> {
+  const agentsPath = path.join(root, ".weki", "AGENTS.md");
+  if (!existsSync(agentsPath)) {
+    await writeFile(agentsPath, DEFAULT_WORKSPACE_AGENTS_MD, "utf8");
+    return "analyze";
+  }
+
+  const body = await readFile(agentsPath, "utf8");
+  return parseWorkspaceDefaultMode(body);
+}
+
+function parseWorkspaceDefaultMode(body: string): WorkspaceInteractionMode {
+  const match = /^default_mode:\s*(analyze|edit)(?:\s*(?:#.*)?)$/im.exec(body);
+  return match?.[1] === "edit" ? "edit" : "analyze";
 }
 
 async function listMarkdownFiles(root: string): Promise<string[]> {

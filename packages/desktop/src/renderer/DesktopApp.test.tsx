@@ -12,6 +12,7 @@ describe("S-08.5 renderer shell", () => {
     expect(html).toContain("Agent");
     expect(html).toContain("Open Workspace");
     expect(html).toContain("Browse");
+    expect(html).toContain("Analyze");
     expect(html).toContain("New Folder");
     expect(html).toContain("Duplicate");
   });
@@ -42,7 +43,12 @@ const fakeApi: DesktopApi = {
     return undefined;
   },
   async openWorkspace() {
-    return { workspaceId: "00000000-0000-4000-8000-000000000000", root: "D:/tmp/weki", agentServerPort: 0 };
+    return {
+      workspaceId: "00000000-0000-4000-8000-000000000000",
+      root: "D:/tmp/weki",
+      agentServerPort: 0,
+      defaultMode: "analyze"
+    };
   },
   async listDocuments() {
     return [];

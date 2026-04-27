@@ -1,4 +1,6 @@
 export type SlashCommandGroup = "core" | "system" | "ext" | "workspace" | "plugin";
+export type WorkspaceInteractionMode = "analyze" | "edit";
+export type SlashCommandEffect = "read" | "write";
 
 export type SlashTarget =
   | { kind: "selection"; docId: string; from: number; to: number }
@@ -49,6 +51,7 @@ export interface SlashCommandArgumentDefinition {
 export interface SlashCommandDefinition {
   verb: string;
   group: SlashCommandGroup;
+  effect: SlashCommandEffect;
   agent?: string;
   summaryKey: string;
   examples: readonly SlashCommandExample[];

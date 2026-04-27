@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { slashCommandCatalog } from "./catalog.js";
+import { canRunSlashCommandInMode, slashCommandCatalog, slashCommandsForMode } from "./catalog.js";
 import type { SlashCommandDefinition } from "./types.js";
 
 describe("slashCommandCatalog", () => {
@@ -29,5 +29,27 @@ describe("slashCommandCatalog", () => {
       expect(en[key], key).toEqual(expect.any(String));
       expect(ko[key], key).toEqual(expect.any(String));
     }
+  });
+
+  it("marks every command as read or write and filters analyze mode to read-only commands", () => {
+    expect(slashCommandCatalog.every((command) => command.effect === "read" || command.effect === "write")).toBe(true);
+
+    const analyzeCommands = slashCommandsForMode("analyze").map((command) => command.verb);
+
+    expect(analyzeCommands).toEqual([
+      "ask",
+      "find",
+      "grep",
+      "compare",
+      "duplicates",
+      "cluster",
+      "diff",
+      "blame",
+      "lint",
+      "review"
+    ]);
+    expect(canRunSlashCommandInMode("draft", "analyze")).toBe(false);
+    expect(canRunSlashCommandInMode("draft", "edit")).toBe(true);
+    expect(canRunSlashCommandInMode("grep", "analyze")).toBe(true);
   });
 });

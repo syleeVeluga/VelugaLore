@@ -46,7 +46,7 @@ button:disabled {
 
 .titlebar {
   display: grid;
-  grid-template-columns: 150px minmax(280px, 1fr) auto auto;
+  grid-template-columns: 150px minmax(280px, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -208,7 +208,7 @@ button:disabled {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   background: #fbfcfd;
 }
 
@@ -216,6 +216,27 @@ button:disabled {
   padding: 0 12px;
   border-bottom: 1px solid #d7dee4;
   color: #52616f;
+  min-height: 38px;
+}
+
+.command-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #d7dee4;
+  color: #52616f;
+}
+
+.command-bar input {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #c8d1d8;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #202124;
 }
 
 .editor-wrap {
@@ -236,6 +257,10 @@ button:disabled {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.editor-wrap textarea:read-only {
+  background: #f3f6f8;
+}
+
 .slash-menu {
   position: absolute;
   left: 20px;
@@ -248,6 +273,13 @@ button:disabled {
   background: #ffffff;
   box-shadow: 0 12px 32px rgb(31 41 51 / 16%);
   border-radius: 8px;
+}
+
+.command-menu {
+  left: 82px;
+  top: 42px;
+  bottom: auto;
+  z-index: 3;
 }
 
 .slash-menu button {
