@@ -1,0 +1,25 @@
+id: curate-024
+title: "release note left under wiki/inbox after batch import"
+scope: wiki/inbox
+fixture: fixtures/curate-024
+agents_md_relevant_rules:
+  - "kind=release-note pages live under wiki/releases"
+  - "wiki/inbox is for unsorted drafts only"
+invocation:
+  slash: /curate scope:wiki/inbox
+  mode: edit
+expected_proposed_ops:
+  - kind: move_doc
+    count_min: 1
+rationale_must_include:
+  - "kind=release-note"
+  - "path mismatch"
+post_invariants_after_apply:
+  - "release note moved under wiki/releases"
+  - "stub redirect created at the old path"
+  - "backlinks rewritten to the new path"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

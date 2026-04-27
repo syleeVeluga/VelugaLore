@@ -1,0 +1,25 @@
+id: curate-f7-backlink-loss
+title: "merge aborts when wiki link rewrite cannot reach 100 percent"
+scope: wiki/policies
+fixture: fixtures/curate-f7
+agents_md_relevant_rules:
+  - "merge requires verifyBacklinkTargets to confirm 100 percent rewrite"
+  - "any unresolved [[link]] aborts the merge"
+invocation:
+  slash: /curate scope:wiki/policies
+  mode: edit
+expected_proposed_ops: []
+forbidden_ops:
+  - kind: merge_docs
+    description: "backlink rewrite verification failed for one inbound link"
+rationale_must_include:
+  - "backlink"
+  - "verify"
+post_invariants_after_apply:
+  - "no merge_docs op proposed"
+  - "no stub redirects created"
+  - "no backlinks rewritten"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F7

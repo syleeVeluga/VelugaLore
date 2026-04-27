@@ -1,0 +1,25 @@
+id: curate-013
+title: "6000 word architecture doc with seven independent headings"
+scope: wiki/architecture
+fixture: fixtures/curate-013
+agents_md_relevant_rules:
+  - "pages over 4000 words split when heading-to-heading cosine is below 0.6"
+  - "each split keeps its own backlink graph"
+invocation:
+  slash: /curate scope:wiki/architecture
+  mode: edit
+expected_proposed_ops:
+  - kind: split_doc
+    count_min: 1
+rationale_must_include:
+  - "cosine"
+  - "heading boundary"
+post_invariants_after_apply:
+  - "every split keeps its frontmatter.kind"
+  - "backlinks rewritten to the matching split"
+  - "approval queue holds the run"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "splits collapsed into the original doc"
+decision: approve
+expected_failure_mode: null

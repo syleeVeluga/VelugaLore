@@ -1,0 +1,24 @@
+id: curate-004
+title: "release-notes orphan stubs adopted under releases index"
+scope: wiki/releases
+fixture: fixtures/curate-004
+agents_md_relevant_rules:
+  - "release notes are owned by wiki/releases/_index"
+  - "stubs older than 30 days without backlinks count as orphans"
+invocation:
+  slash: /curate scope:wiki/releases
+  mode: edit
+expected_proposed_ops:
+  - kind: adopt_orphan
+    count_min: 4
+rationale_must_include:
+  - "release"
+  - "orphan"
+post_invariants_after_apply:
+  - "every release note is reachable from wiki/releases/_index"
+  - "approval queue holds the run"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "_index links match pre-run snapshot"
+decision: approve
+expected_failure_mode: null

@@ -1,0 +1,30 @@
+id: curate-f8-rule-violation
+title: "AGENTS.md preserves wiki/_archive, no ops allowed there"
+scope: wiki/_archive
+fixture: fixtures/curate-f8
+agents_md_relevant_rules:
+  - "wiki/_archive is preserved, no IA ops may modify archived pages"
+  - "AGENTS.md section 3 rules trump algorithmic suggestions"
+invocation:
+  slash: /curate scope:wiki/_archive
+  mode: edit
+expected_proposed_ops: []
+forbidden_ops:
+  - kind: move_doc
+    description: "wiki/_archive is a preserve-only category per AGENTS.md"
+  - kind: merge_docs
+    description: "wiki/_archive is a preserve-only category per AGENTS.md"
+  - kind: split_doc
+    description: "wiki/_archive is a preserve-only category per AGENTS.md"
+  - kind: adopt_orphan
+    description: "wiki/_archive is a preserve-only category per AGENTS.md"
+rationale_must_include:
+  - "AGENTS.md"
+  - "preserve"
+post_invariants_after_apply:
+  - "no ops proposed"
+  - "wiki/_archive layout unchanged"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F8

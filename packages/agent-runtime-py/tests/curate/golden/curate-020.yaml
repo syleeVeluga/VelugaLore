@@ -1,0 +1,25 @@
+id: curate-020
+title: "Q3 roadmap stored under wiki/concepts instead of wiki/plans"
+scope: wiki/concepts
+fixture: fixtures/curate-020
+agents_md_relevant_rules:
+  - "kind=plan pages live under wiki/plans"
+  - "moved plans keep their backlinks via stub redirect"
+invocation:
+  slash: /curate scope:wiki/concepts
+  mode: edit
+expected_proposed_ops:
+  - kind: move_doc
+    count_min: 1
+rationale_must_include:
+  - "kind=plan"
+  - "path mismatch"
+post_invariants_after_apply:
+  - "roadmap moved under wiki/plans"
+  - "stub redirect created at the old path"
+  - "backlinks rewritten to the new path"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

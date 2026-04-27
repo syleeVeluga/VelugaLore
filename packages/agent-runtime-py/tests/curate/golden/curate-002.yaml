@@ -1,0 +1,24 @@
+id: curate-002
+title: "concepts _index exists but five orphans never linked"
+scope: wiki/concepts
+fixture: fixtures/curate-002
+agents_md_relevant_rules:
+  - "every category index links every page in its folder"
+  - "orphans with cosine >= 0.8 to nearest index get adopted"
+invocation:
+  slash: /curate scope:wiki/concepts
+  mode: edit
+expected_proposed_ops:
+  - kind: adopt_orphan
+    count_min: 5
+rationale_must_include:
+  - "orphan"
+  - "cosine"
+post_invariants_after_apply:
+  - "wiki/concepts/_index.md links every adopted page"
+  - "approval queue holds the run"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "_index.md links match pre-run snapshot"
+decision: approve
+expected_failure_mode: null

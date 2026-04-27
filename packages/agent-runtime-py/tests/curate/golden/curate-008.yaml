@@ -1,0 +1,25 @@
+id: curate-008
+title: "two security policy stubs converge after editorial pass"
+scope: wiki/security
+fixture: fixtures/curate-008
+agents_md_relevant_rules:
+  - "security policies share kind=policy and merge when overlap is high"
+  - "preserve cross-references to legal terms during merge"
+invocation:
+  slash: /curate scope:wiki/security
+  mode: edit
+expected_proposed_ops:
+  - kind: merge_docs
+    count_min: 1
+rationale_must_include:
+  - "embedding cosine"
+  - "kind=policy"
+post_invariants_after_apply:
+  - "single security policy remains"
+  - "stub redirect from absorbed page resolves to merged page"
+  - "legal cross-references preserved"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null
