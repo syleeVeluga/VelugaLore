@@ -1,4 +1,4 @@
-import type { SlashCommandDefinition } from "./types.js";
+import type { SlashCommandDefinition, WorkspaceInteractionMode } from "./types.js";
 
 const toneValues = [
   { value: "executive", labelKey: "slash.arg.value.tone.executive" },
@@ -11,6 +11,7 @@ export const slashCommandCatalog = [
   {
     verb: "draft",
     group: "core",
+    effect: "write",
     agent: "draft",
     summaryKey: "slash.draft.summary",
     examples: [
@@ -25,6 +26,7 @@ export const slashCommandCatalog = [
   {
     verb: "improve",
     group: "core",
+    effect: "write",
     agent: "improve",
     summaryKey: "slash.improve.summary",
     examples: [
@@ -42,6 +44,7 @@ export const slashCommandCatalog = [
   {
     verb: "ask",
     group: "core",
+    effect: "read",
     agent: "ask",
     summaryKey: "slash.ask.summary",
     examples: [
@@ -54,6 +57,7 @@ export const slashCommandCatalog = [
   {
     verb: "ingest",
     group: "core",
+    effect: "write",
     agent: "ingest",
     summaryKey: "slash.ingest.summary",
     examples: [{ input: "/ingest path:./inbox/2026-04-arxiv.pdf", labelKey: "slash.ingest.example.path" }],
@@ -64,6 +68,7 @@ export const slashCommandCatalog = [
   {
     verb: "curate",
     group: "core",
+    effect: "write",
     agent: "curate",
     summaryKey: "slash.curate.summary",
     examples: [
@@ -81,6 +86,7 @@ export const slashCommandCatalog = [
   {
     verb: "import",
     group: "system",
+    effect: "write",
     summaryKey: "slash.import.summary",
     examples: [
       {
@@ -100,6 +106,7 @@ export const slashCommandCatalog = [
   {
     verb: "find",
     group: "system",
+    effect: "read",
     summaryKey: "slash.find.summary",
     examples: [{ input: "/find exact phrase --mode literal --topk 10", labelKey: "slash.find.example.literal" }],
     args: [
@@ -115,6 +122,7 @@ export const slashCommandCatalog = [
   {
     verb: "grep",
     group: "system",
+    effect: "read",
     summaryKey: "slash.grep.summary",
     examples: [{ input: "/grep '\\[\\[[^\\]]*\\]\\]' --output content", labelKey: "slash.grep.example.links" }],
     args: [
@@ -129,6 +137,7 @@ export const slashCommandCatalog = [
   {
     verb: "compare",
     group: "system",
+    effect: "read",
     summaryKey: "slash.compare.summary",
     examples: [{ input: "/compare doc:policy-2025 doc:policy-2026 --mode prose", labelKey: "slash.compare.example.docs" }],
     selection: "none",
@@ -138,6 +147,7 @@ export const slashCommandCatalog = [
   {
     verb: "duplicates",
     group: "system",
+    effect: "read",
     summaryKey: "slash.duplicates.summary",
     examples: [{ input: "/duplicates scope:wiki/inbox --threshold 0.9", labelKey: "slash.duplicates.example.scope" }],
     selection: "none",
@@ -147,6 +157,7 @@ export const slashCommandCatalog = [
   {
     verb: "cluster",
     group: "system",
+    effect: "read",
     summaryKey: "slash.cluster.summary",
     examples: [{ input: "/cluster scope:wiki/policies --k auto", labelKey: "slash.cluster.example.scope" }],
     selection: "none",
@@ -156,6 +167,7 @@ export const slashCommandCatalog = [
   {
     verb: "diff",
     group: "system",
+    effect: "read",
     summaryKey: "slash.diff.summary",
     examples: [{ input: "/diff doc:policy --rev 12 --rev 17", labelKey: "slash.diff.example.rev" }],
     selection: "none",
@@ -165,6 +177,7 @@ export const slashCommandCatalog = [
   {
     verb: "blame",
     group: "system",
+    effect: "read",
     summaryKey: "slash.blame.summary",
     examples: [{ input: "/blame range:42:118", labelKey: "slash.blame.example.range" }],
     selection: "required",
@@ -174,6 +187,7 @@ export const slashCommandCatalog = [
   {
     verb: "revert",
     group: "system",
+    effect: "write",
     summaryKey: "slash.revert.summary",
     examples: [{ input: "/revert run:9b14", labelKey: "slash.revert.example.run" }],
     selection: "none",
@@ -183,6 +197,7 @@ export const slashCommandCatalog = [
   {
     verb: "lint",
     group: "system",
+    effect: "read",
     summaryKey: "slash.lint.summary",
     examples: [{ input: "/lint scope:wiki/policies", labelKey: "slash.lint.example.scope" }],
     selection: "none",
@@ -192,6 +207,7 @@ export const slashCommandCatalog = [
   {
     verb: "compile",
     group: "system",
+    effect: "write",
     summaryKey: "slash.compile.summary",
     examples: [{ input: "/compile --since 24h", labelKey: "slash.compile.example.since" }],
     selection: "none",
@@ -201,6 +217,7 @@ export const slashCommandCatalog = [
   {
     verb: "plan",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.plan.summary",
     examples: [{ input: "/plan selected section", labelKey: "slash.plan.example.selection" }],
     selection: "optional",
@@ -210,6 +227,7 @@ export const slashCommandCatalog = [
   {
     verb: "expand",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.expand.summary",
     examples: [{ input: "/expand", labelKey: "slash.expand.example.selection" }],
     selection: "required",
@@ -219,6 +237,7 @@ export const slashCommandCatalog = [
   {
     verb: "simplify",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.simplify.summary",
     examples: [{ input: "/simplify --tone executive", labelKey: "slash.simplify.example.tone" }],
     selection: "required",
@@ -228,6 +247,7 @@ export const slashCommandCatalog = [
   {
     verb: "crosslink",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.crosslink.summary",
     examples: [{ input: "/crosslink", labelKey: "slash.crosslink.example.doc" }],
     selection: "none",
@@ -237,6 +257,7 @@ export const slashCommandCatalog = [
   {
     verb: "review",
     group: "ext",
+    effect: "read",
     summaryKey: "slash.review.summary",
     examples: [{ input: "/review --scope doc", labelKey: "slash.review.example.doc" }],
     selection: "none",
@@ -246,6 +267,7 @@ export const slashCommandCatalog = [
   {
     verb: "summarize",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.summarize.summary",
     examples: [{ input: "/summarize doc:meeting-notes", labelKey: "slash.summarize.example.doc" }],
     selection: "none",
@@ -255,6 +277,7 @@ export const slashCommandCatalog = [
   {
     verb: "outline",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.outline.summary",
     examples: [{ input: "/outline", labelKey: "slash.outline.example.doc" }],
     selection: "none",
@@ -264,6 +287,7 @@ export const slashCommandCatalog = [
   {
     verb: "translate",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.translate.summary",
     examples: [{ input: "/translate --to ko", labelKey: "slash.translate.example.to" }],
     selection: "required",
@@ -273,6 +297,7 @@ export const slashCommandCatalog = [
   {
     verb: "cite",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.cite.summary",
     examples: [{ input: "/cite", labelKey: "slash.cite.example.selection" }],
     selection: "required",
@@ -282,6 +307,7 @@ export const slashCommandCatalog = [
   {
     verb: "slides",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.slides.summary",
     examples: [{ input: "/slides --format deck", labelKey: "slash.slides.example.deck" }],
     selection: "none",
@@ -291,6 +317,7 @@ export const slashCommandCatalog = [
   {
     verb: "diagram",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.diagram.summary",
     examples: [{ input: "/diagram", labelKey: "slash.diagram.example.doc" }],
     selection: "optional",
@@ -300,6 +327,7 @@ export const slashCommandCatalog = [
   {
     verb: "refactor",
     group: "ext",
+    effect: "write",
     summaryKey: "slash.refactor.summary",
     examples: [{ input: "/refactor resource -> asset --scope wiki/policies --preview", labelKey: "slash.refactor.example.scope" }],
     selection: "optional",
@@ -316,4 +344,23 @@ export const slashCommandByVerb: ReadonlyMap<string, SlashCommandDefinition> = n
 
 export function getSlashCommand(verb: string): SlashCommandDefinition | undefined {
   return slashCommandByVerb.get(verb);
+}
+
+export function slashCommandsForMode(mode: WorkspaceInteractionMode): SlashCommandDefinition[] {
+  if (mode === "edit") {
+    return [...slashCommandCatalog];
+  }
+
+  return slashCommandCatalog.filter((command) => command.effect === "read");
+}
+
+export function canRunSlashCommandInMode(verb: string, mode: WorkspaceInteractionMode): boolean {
+  const command = getSlashCommand(verb);
+  return Boolean(command && (mode === "edit" || command.effect === "read"));
+}
+
+export function assertSlashCommandAllowedInMode(verb: string, mode: WorkspaceInteractionMode): void {
+  if (!canRunSlashCommandInMode(verb, mode)) {
+    throw new Error(`Slash command /${verb} is not available in ${mode} mode.`);
+  }
 }

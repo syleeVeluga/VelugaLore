@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -49,8 +49,10 @@ describe("S-08.5 desktop workspace session", () => {
       const opened = await session.openWorkspace(tempRoot);
 
       expect(existsSync(path.join(tempRoot, ".weki"))).toBe(true);
+      await expect(readFile(path.join(tempRoot, ".weki", "AGENTS.md"), "utf8")).resolves.toContain("default_mode: analyze");
       expect(opened.workspaceId).toMatch(/[0-9a-f-]{36}/);
       expect(opened.agentServerPort).toBeGreaterThan(0);
+      expect(opened.defaultMode).toBe("analyze");
       const health = await fetch(`http://127.0.0.1:${opened.agentServerPort}/health`);
       await expect(health.json()).resolves.toEqual({ status: "ok" });
     },
@@ -154,6 +156,17 @@ describe("S-08.5 desktop workspace session", () => {
     await expect(session.renameDoc({ docId: first.id, title: "Second" })).rejects.toThrow("Document path already exists");
     await expect(readFile(path.join(tempRoot, "wiki/second.md"), "utf8")).resolves.toBe("# Second\n");
     await expect(readFile(path.join(tempRoot, "wiki/first.md"), "utf8")).resolves.toBe("# First\n");
+  });
+
+  it("honors an existing workspace AGENTS.md default_mode override", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    await mkdir(path.join(tempRoot, ".weki"), { recursive: true });
+    await writeFile(path.join(tempRoot, ".weki", "AGENTS.md"), "default_mode: edit # allow writes\n", "utf8");
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+
+    const opened = await session.openWorkspace(tempRoot);
+
+    expect(opened.defaultMode).toBe("edit");
   });
 });
 

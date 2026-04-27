@@ -165,4 +165,21 @@ describe("slash menu rendering", () => {
 
     expect(importCompletion?.apply).toBe("/import");
   });
+
+  it("hides write commands from analyze mode completions", () => {
+    const state = EditorState.create({ doc: "/" });
+    const context = {
+      state,
+      pos: 1,
+      explicit: false
+    };
+
+    const result = slashCompletionSource(context as never, translate, "analyze");
+    const labels = result?.options.map((option) => option.label) ?? [];
+
+    expect(labels).toContain("/grep");
+    expect(labels).toContain("/ask");
+    expect(labels).not.toContain("/draft");
+    expect(labels).not.toContain("/import");
+  });
 });

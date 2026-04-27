@@ -156,10 +156,13 @@ function normalizeOpenWorkspaceResponse(value: unknown): OpenWorkspaceResponse {
     root?: string;
     agentServerPort?: number;
     agent_server_port?: number;
+    defaultMode?: "analyze" | "edit";
+    default_mode?: "analyze" | "edit";
   };
   return {
     workspaceId: raw.workspaceId ?? raw.workspace_id ?? "",
     root: raw.root ?? "",
-    agentServerPort: raw.agentServerPort ?? raw.agent_server_port ?? 0
+    agentServerPort: raw.agentServerPort ?? raw.agent_server_port ?? 0,
+    defaultMode: raw.defaultMode ?? raw.default_mode ?? "analyze"
   };
 }

@@ -2,11 +2,12 @@ import { autocompletion, type Completion, type CompletionContext, type Completio
 import type { Extension } from "@codemirror/state";
 import {
   getSlashCommand,
-  slashCommandCatalog,
+  slashCommandsForMode,
   type SlashCommandArgumentDefinition,
   type SlashCommandArgumentValueDefinition,
   type SlashCommandDefinition,
-  type SlashInvocation
+  type SlashInvocation,
+  type WorkspaceInteractionMode
 } from "@weki/core";
 
 export type Translate = (key: string) => string;
@@ -47,14 +48,19 @@ export interface SlashInvocationView {
 
 export interface WekiSlashMenuOptions {
   translate?: Translate;
+  mode?: WorkspaceInteractionMode;
 }
 
 const identityTranslate: Translate = (key) => key;
 
-export function renderSlashMenuItems(query = "", translate: Translate = identityTranslate): SlashMenuItemView[] {
+export function renderSlashMenuItems(
+  query = "",
+  translate: Translate = identityTranslate,
+  mode: WorkspaceInteractionMode = "edit"
+): SlashMenuItemView[] {
   const normalized = query.replace(/^\//, "").toLowerCase();
 
-  return slashCommandCatalog
+  return slashCommandsForMode(mode)
     .filter((command) => command.verb.startsWith(normalized))
     .map((command) => {
       const examples = command.examples.map((example) => ({
@@ -130,13 +136,18 @@ export function renderSlashInvocation(invocation: SlashInvocation, translate: Tr
 
 export function wekiSlashMenu(options: WekiSlashMenuOptions = {}): Extension {
   const translate = options.translate ?? identityTranslate;
+  const mode = options.mode ?? "edit";
 
   return autocompletion({
-    override: [(context) => slashCompletionSource(context, translate)]
+    override: [(context) => slashCompletionSource(context, translate, mode)]
   });
 }
 
-export function slashCompletionSource(context: CompletionContext, translate: Translate = identityTranslate): CompletionResult | null {
+export function slashCompletionSource(
+  context: CompletionContext,
+  translate: Translate = identityTranslate,
+  mode: WorkspaceInteractionMode = "edit"
+): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const beforeCursor = context.state.sliceDoc(line.from, context.pos);
   const argNameContext = getArgumentNameCompletionContext(beforeCursor, context.pos);
@@ -174,7 +185,7 @@ export function slashCompletionSource(context: CompletionContext, translate: Tra
 
   const token = match[1];
   const from = context.pos - token.length;
-  const options = renderSlashMenuItems(token, translate).map(toCompletion);
+  const options = renderSlashMenuItems(token, translate, mode).map(toCompletion);
 
   return {
     from,
