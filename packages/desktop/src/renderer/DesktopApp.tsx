@@ -77,6 +77,52 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
     await refreshDocuments(created.id);
   }
 
+  async function createFolder() {
+    const base = documents.length === 0 ? "wiki" : `wiki/folder-${documents.length + 1}`;
+    const created = await api.createFolder(base);
+    setStatus(t("desktop.status.created"));
+    await refreshDocuments(created.id);
+  }
+
+  async function duplicateActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    const duplicated = await api.duplicateDoc(activeDoc.id);
+    setStatus(t("desktop.status.created"));
+    await refreshDocuments(duplicated.id);
+  }
+
+  async function archiveActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    const archived = await api.archiveDoc(activeDoc.id);
+    setStatus(t("desktop.status.archived"));
+    await refreshDocuments(archived.id);
+  }
+
+  async function restoreActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    const restored = await api.restoreDoc(activeDoc.id);
+    setStatus(t("desktop.status.restored"));
+    await refreshDocuments(restored.id);
+  }
+
+  async function tagActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+    const updated = await api.updateDocMetadata(activeDoc.id, {
+      kind: activeDoc.kind ?? "draft",
+      tags: [...new Set([...(activeDoc.tags ?? []), "manual"])]
+    });
+    setStatus(t("desktop.status.saved"));
+    await refreshDocuments(updated.id);
+  }
+
   async function openDoc(docId: string) {
     const doc = documents.find((item) => item.id === docId);
     if (!doc) {
@@ -139,8 +185,25 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
         <aside className="left-pane">
           <div className="pane-heading">
             <span>{t("desktop.files.title")}</span>
-            <button type="button" onClick={createNote} disabled={!workspaceRoot}>
+            <button type="button" onClick={createNote} disabled={!workspaceRoot || mode === "analyze"}>
               {t("desktop.files.new")}
+            </button>
+          </div>
+          <div className="file-actions">
+            <button type="button" onClick={createFolder} disabled={!workspaceRoot || mode === "analyze"}>
+              {t("desktop.files.newFolder")}
+            </button>
+            <button type="button" onClick={duplicateActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.duplicate")}
+            </button>
+            <button type="button" onClick={archiveActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.archive")}
+            </button>
+            <button type="button" onClick={restoreActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.restore")}
+            </button>
+            <button type="button" onClick={tagActiveDoc} disabled={!activeDoc || mode === "analyze"}>
+              {t("desktop.files.tags")}
             </button>
           </div>
           {documents.length === 0 ? (

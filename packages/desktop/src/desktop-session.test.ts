@@ -14,6 +14,13 @@ describe("S-08.5 desktop shell IPC contract", () => {
       "list_documents",
       "read_doc",
       "create_doc",
+      "create_folder",
+      "rename_doc",
+      "move_doc",
+      "duplicate_doc",
+      "archive_doc",
+      "restore_doc",
+      "update_doc_metadata",
       "apply_patch",
       "list_pending_approvals"
     ]);
@@ -102,6 +109,51 @@ describe("S-08.5 desktop workspace session", () => {
       rev: 2,
       bodySha256: sha256Hex("external edit")
     });
+  });
+
+  it("supports manual page and folder management through audited two-phase writes", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+    await session.openWorkspace(tempRoot);
+
+    const folder = await session.createFolder({ path: "wiki/policies" });
+    const page = await session.createDoc({ path: "wiki/policies/onboarding.md", body: "# Onboarding\n" });
+    const renamed = await session.renameDoc({ docId: page.id, title: "Employee Onboarding" });
+    const moved = await session.moveDoc({ docId: renamed.id, folderPath: "wiki/hr" });
+    const taggedSource = await session.updateDocMetadata({
+      docId: moved.id,
+      metadata: { kind: "concept", tags: ["manual", "hr"], frontmatter: { owner: "people", _import: { source: "test" } } }
+    });
+    const duplicate = await session.duplicateDoc({ docId: moved.id });
+    const archived = await session.archiveDoc({ docId: moved.id });
+    expect("deleted" in archived).toBe(false);
+    if ("deleted" in archived) {
+      return;
+    }
+    const restored = await session.restoreDoc({ docId: archived.id, path: "wiki/hr/restored-onboarding.md" });
+
+    expect(folder.path).toBe("wiki/policies/_index.md");
+    expect(moved.path).toBe("wiki/hr/employee-onboarding.md");
+    expect(taggedSource).toMatchObject({ kind: "concept", tags: ["manual", "hr"], frontmatter: { owner: "people" } });
+    expect(duplicate.path).toBe("wiki/hr/employee-onboarding-copy.md");
+    expect(duplicate).toMatchObject({ kind: "concept", tags: ["manual", "hr"], frontmatter: { owner: "people" } });
+    expect(duplicate.frontmatter).not.toHaveProperty("_import");
+    expect(archived.path).toBe("wiki/_archive/employee-onboarding.md");
+    expect(restored.path).toBe("wiki/hr/restored-onboarding.md");
+    await expect(readFile(path.join(tempRoot, "wiki/hr/restored-onboarding.md"), "utf8")).resolves.toContain("# Onboarding");
+  });
+
+  it("rejects manual path collisions before writing or removing files", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+    await session.openWorkspace(tempRoot);
+
+    const first = await session.createDoc({ path: "wiki/first.md", body: "# First\n" });
+    await session.createDoc({ path: "wiki/second.md", body: "# Second\n" });
+
+    await expect(session.renameDoc({ docId: first.id, title: "Second" })).rejects.toThrow("Document path already exists");
+    await expect(readFile(path.join(tempRoot, "wiki/second.md"), "utf8")).resolves.toBe("# Second\n");
+    await expect(readFile(path.join(tempRoot, "wiki/first.md"), "utf8")).resolves.toBe("# First\n");
   });
 });
 

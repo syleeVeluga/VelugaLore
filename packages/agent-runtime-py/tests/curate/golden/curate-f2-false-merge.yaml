@@ -1,0 +1,23 @@
+id: curate-f2-false-merge
+title: "same words but different kinds must not merge"
+scope: wiki/policies
+fixture: fixtures/curate-f2
+agents_md_relevant_rules:
+  - "merge requires embedding, tsvector overlap, and matching kind"
+invocation:
+  slash: /curate scope:wiki/policies
+  mode: edit
+expected_proposed_ops:
+  - kind: move_doc
+    count_min: 1
+forbidden_ops:
+  - kind: merge_docs
+    description: "concept and entity pages may share template terms but remain separate"
+rationale_must_include:
+  - "kind"
+post_invariants_after_apply:
+  - "no false merge"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F2

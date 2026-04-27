@@ -22,6 +22,7 @@ import {
   type StoredPatchApproval
 } from "./approval-store.js";
 import { runAskAgent } from "./ask-agent.js";
+import { runCurateAgent } from "./curate-agent.js";
 import { runDraftAgent } from "./draft-agent.js";
 import { runImproveAgent } from "./improve-agent.js";
 import { runIngestAgent } from "./ingest-agent.js";
@@ -146,6 +147,16 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
 
       if (parsedInvocation.agentId === "ingest") {
         const patch = runIngestAgent(parsedInvocation);
+        const run = await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch
+        });
+        await approvalStore.propose({ run, patch });
+        return run;
+      }
+
+      if (parsedInvocation.agentId === "curate") {
+        const patch = runCurateAgent(parsedInvocation);
         const run = await store.create(parsedInvocation, {
           status: "succeeded",
           patch

@@ -239,6 +239,84 @@ export const ingestPatchSchema = z.object({
   }
 });
 
+const iaEvidenceSchema = z.object({
+  source: z.string().min(1),
+  score: z.number().min(0).max(1).optional(),
+  note: z.string().min(1)
+});
+
+export const splitDocOpSchema = z.object({
+  kind: z.literal("split_doc"),
+  docId: z.string().min(1),
+  cuts: z
+    .array(
+      z.object({
+        at: z.number().int().min(0),
+        newPath: z.string().min(1),
+        newTitle: z.string().min(1),
+        carryFrontmatter: z.boolean().default(true)
+      })
+    )
+    .min(1),
+  leaveStub: z.boolean().default(true),
+  evidence: iaEvidenceSchema
+});
+
+export const mergeDocsOpSchema = z.object({
+  kind: z.literal("merge_docs"),
+  docIds: z.array(z.string().min(1)).min(2),
+  intoPath: z.string().min(1),
+  intoTitle: z.string().min(1),
+  redirectStrategy: z.enum(["stub", "tombstone"]).default("stub"),
+  preserveHistory: z.literal(true),
+  evidence: iaEvidenceSchema
+});
+
+export const moveDocOpSchema = z.object({
+  kind: z.literal("move_doc"),
+  docId: z.string().min(1),
+  newPath: z.string().min(1),
+  relink: z.boolean().default(true),
+  leaveStub: z.boolean().default(true),
+  evidence: iaEvidenceSchema
+});
+
+export const adoptOrphanOpSchema = z.object({
+  kind: z.literal("adopt_orphan"),
+  docId: z.string().min(1),
+  parentIndexDocId: z.string().min(1),
+  section: z.string().min(1).optional(),
+  evidence: iaEvidenceSchema
+});
+
+export const curatePatchOpSchema = z.union([
+  splitDocOpSchema,
+  mergeDocsOpSchema,
+  moveDocOpSchema,
+  adoptOrphanOpSchema
+]);
+
+export const curatePatchSchema = z.object({
+  kind: z.literal("Patch"),
+  outputSchema: z.literal("CuratePatch").default("CuratePatch"),
+  agentId: z.literal("curate").default("curate"),
+  ops: z.array(curatePatchOpSchema).min(1).max(50),
+  rationale: z.string().min(1),
+  rationalePerOp: z.array(z.string().min(1)).min(1),
+  requiresApproval: z.literal(true),
+  previewHtml: z.string().optional(),
+  failureModesConsidered: z.array(z.enum(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"]))
+    .default(() => [])
+}).superRefine((patch, ctx) => {
+  if (patch.rationalePerOp.length !== patch.ops.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "CuratePatch rationalePerOp must contain one rationale for each IA op",
+      path: ["rationalePerOp"]
+    });
+  }
+});
+
 export const patchSchema = z.object({
   kind: z.literal("Patch"),
   ops: z.array(z.unknown()),
@@ -279,7 +357,8 @@ export const agentRunInvocationSchema = z.object({
             docId: z.string().min(1),
             title: z.string().min(1),
             path: z.string().min(1).optional(),
-            body: z.string()
+            body: z.string(),
+            kind: documentKindSchema.optional()
           })
         )
         .optional(),
@@ -334,6 +413,12 @@ export type ImprovePatch = z.infer<typeof improvePatchSchema>;
 export type ImproveReplaceRangeOp = z.infer<typeof improveReplaceRangeOpSchema>;
 export type InsertLinkOp = z.infer<typeof insertLinkOpSchema>;
 export type InsertSectionTreeOp = z.infer<typeof insertSectionTreeOpSchema>;
+export type AdoptOrphanOp = z.infer<typeof adoptOrphanOpSchema>;
+export type CuratePatch = z.infer<typeof curatePatchSchema>;
+export type CuratePatchOp = z.infer<typeof curatePatchOpSchema>;
+export type MergeDocsOp = z.infer<typeof mergeDocsOpSchema>;
+export type MoveDocOp = z.infer<typeof moveDocOpSchema>;
 export type RawSourceRef = z.infer<typeof rawSourceRefSchema>;
 export type ReplaceRangeOp = z.infer<typeof replaceRangeOpSchema>;
+export type SplitDocOp = z.infer<typeof splitDocOpSchema>;
 export type UpdateIndexOp = z.infer<typeof updateIndexOpSchema>;
