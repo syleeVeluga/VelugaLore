@@ -1,0 +1,24 @@
+id: curate-005
+title: "glossary terms imported as orphans pick up glossary index"
+scope: wiki/glossary
+fixture: fixtures/curate-005
+agents_md_relevant_rules:
+  - "glossary terms have kind=term and live under wiki/glossary"
+  - "term pages should be linked from wiki/glossary/_index"
+invocation:
+  slash: /curate scope:wiki/glossary
+  mode: edit
+expected_proposed_ops:
+  - kind: adopt_orphan
+    count_min: 6
+rationale_must_include:
+  - "glossary"
+  - "kind=term"
+post_invariants_after_apply:
+  - "wiki/glossary/_index lists every term"
+  - "no term remains orphan"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "_index links match pre-run snapshot"
+decision: approve
+expected_failure_mode: null

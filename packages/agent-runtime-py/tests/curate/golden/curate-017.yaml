@@ -1,0 +1,24 @@
+id: curate-017
+title: "runbook doc bundles five unrelated services"
+scope: wiki/runbooks
+fixture: fixtures/curate-017
+agents_md_relevant_rules:
+  - "runbooks split per service when heading cosine is below 0.6"
+  - "each service runbook keeps its own oncall metadata"
+invocation:
+  slash: /curate scope:wiki/runbooks
+  mode: edit
+expected_proposed_ops:
+  - kind: split_doc
+    count_min: 1
+rationale_must_include:
+  - "service"
+  - "cosine"
+post_invariants_after_apply:
+  - "each split runbook keeps its oncall frontmatter"
+  - "backlinks rewritten to the matching split"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "splits collapsed into the original runbook"
+decision: approve
+expected_failure_mode: null

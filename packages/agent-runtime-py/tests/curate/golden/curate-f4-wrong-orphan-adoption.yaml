@@ -1,0 +1,24 @@
+id: curate-f4-wrong-orphan-adoption
+title: "orphan with cosine 0.62 to nearest index must not be adopted"
+scope: wiki/inbox
+fixture: fixtures/curate-f4
+agents_md_relevant_rules:
+  - "adopt_orphan requires embedding cosine >= 0.8 to nearest index"
+  - "low-confidence adoptions are dropped, not stashed under wrong index"
+invocation:
+  slash: /curate scope:wiki/inbox
+  mode: edit
+expected_proposed_ops: []
+forbidden_ops:
+  - kind: adopt_orphan
+    description: "cosine 0.62 is below the 0.8 adoption threshold"
+rationale_must_include:
+  - "cosine"
+  - "below threshold"
+post_invariants_after_apply:
+  - "no adopt_orphan op proposed"
+  - "orphan remains under wiki/inbox"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F4

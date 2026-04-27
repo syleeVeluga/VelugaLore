@@ -1,0 +1,25 @@
+id: curate-007
+title: "near-duplicate onboarding pages from two import batches"
+scope: wiki/onboarding
+fixture: fixtures/curate-007
+agents_md_relevant_rules:
+  - "merge requires embedding cosine >= 0.85 plus tsvector overlap >= 0.7"
+  - "merge preserves the longer page and stub-redirects the shorter"
+invocation:
+  slash: /curate scope:wiki/onboarding
+  mode: edit
+expected_proposed_ops:
+  - kind: merge_docs
+    count_min: 1
+rationale_must_include:
+  - "tsvector overlap"
+  - "stub redirect"
+post_invariants_after_apply:
+  - "merged page retains the longer body"
+  - "stub redirect created for the absorbed page"
+  - "backlinks rewritten to merged page"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

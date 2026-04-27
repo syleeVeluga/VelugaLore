@@ -1,0 +1,24 @@
+id: curate-012
+title: "two meeting notes drafted for the same standup"
+scope: wiki/meetings
+fixture: fixtures/curate-012
+agents_md_relevant_rules:
+  - "meeting notes share kind=meeting and merge when date and attendees overlap"
+  - "merged note lists every attendee that contributed"
+invocation:
+  slash: /curate scope:wiki/meetings
+  mode: edit
+expected_proposed_ops:
+  - kind: merge_docs
+    count_min: 1
+rationale_must_include:
+  - "attendees"
+  - "kind=meeting"
+post_invariants_after_apply:
+  - "merged note lists every attendee"
+  - "stub redirect created for the absorbed note"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

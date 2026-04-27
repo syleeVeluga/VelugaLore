@@ -1,0 +1,24 @@
+id: curate-014
+title: "5000 word migration plan with eight phase headings"
+scope: wiki/migrations
+fixture: fixtures/curate-014
+agents_md_relevant_rules:
+  - "long migration plans split per phase when heading cosine is below 0.6"
+  - "each phase becomes its own page with shared parent index"
+invocation:
+  slash: /curate scope:wiki/migrations
+  mode: edit
+expected_proposed_ops:
+  - kind: split_doc
+    count_min: 1
+rationale_must_include:
+  - "phase"
+  - "cosine"
+post_invariants_after_apply:
+  - "each phase split has its own frontmatter"
+  - "wiki/migrations/_index links every phase"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "splits collapsed into the original doc"
+decision: approve
+expected_failure_mode: null

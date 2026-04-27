@@ -1,0 +1,25 @@
+id: curate-022
+title: "glossary term saved under wiki/random folder"
+scope: wiki/random
+fixture: fixtures/curate-022
+agents_md_relevant_rules:
+  - "kind=term pages live under wiki/glossary"
+  - "wiki/random is not a sanctioned category folder"
+invocation:
+  slash: /curate scope:wiki/random
+  mode: edit
+expected_proposed_ops:
+  - kind: move_doc
+    count_min: 1
+rationale_must_include:
+  - "kind=term"
+  - "path mismatch"
+post_invariants_after_apply:
+  - "term moved under wiki/glossary"
+  - "stub redirect created at the old path"
+  - "backlinks rewritten to the new path"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

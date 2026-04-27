@@ -1,0 +1,24 @@
+id: curate-006
+title: "FAQ orphans adopted under support index"
+scope: wiki/support
+fixture: fixtures/curate-006
+agents_md_relevant_rules:
+  - "FAQ entries belong to wiki/support/_index"
+  - "support pages must be reachable from a single FAQ index"
+invocation:
+  slash: /curate scope:wiki/support
+  mode: edit
+expected_proposed_ops:
+  - kind: adopt_orphan
+    count_min: 3
+rationale_must_include:
+  - "support"
+  - "embedding nearest"
+post_invariants_after_apply:
+  - "wiki/support/_index links every FAQ"
+  - "approval queue holds the run"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "_index links match pre-run snapshot"
+decision: approve
+expected_failure_mode: null

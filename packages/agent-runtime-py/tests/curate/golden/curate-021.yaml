@@ -1,0 +1,25 @@
+id: curate-021
+title: "security policy left in wiki/inbox after import"
+scope: wiki/inbox
+fixture: fixtures/curate-021
+agents_md_relevant_rules:
+  - "kind=policy pages live under wiki/policies"
+  - "wiki/inbox is for unsorted drafts only"
+invocation:
+  slash: /curate scope:wiki/inbox
+  mode: edit
+expected_proposed_ops:
+  - kind: move_doc
+    count_min: 1
+rationale_must_include:
+  - "kind=policy"
+  - "path mismatch"
+post_invariants_after_apply:
+  - "policy moved under wiki/policies"
+  - "stub redirect created at the old path"
+  - "backlinks rewritten to the new path"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "stub redirects removed on revert"
+decision: approve
+expected_failure_mode: null

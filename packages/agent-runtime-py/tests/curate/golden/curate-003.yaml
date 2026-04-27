@@ -1,0 +1,24 @@
+id: curate-003
+title: "tutorial drafts orphaned in inbox after import"
+scope: wiki/inbox
+fixture: fixtures/curate-003
+agents_md_relevant_rules:
+  - "imported drafts default to wiki/inbox until adopted"
+  - "tutorial pages live under wiki/tutorials"
+invocation:
+  slash: /curate scope:wiki/inbox
+  mode: edit
+expected_proposed_ops:
+  - kind: adopt_orphan
+    count_min: 3
+rationale_must_include:
+  - "tutorials"
+  - "embedding nearest index"
+post_invariants_after_apply:
+  - "tutorial drafts adopted under wiki/tutorials/_index"
+  - "wiki/inbox no longer lists adopted drafts"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+  - "wiki/inbox layout matches pre-run snapshot"
+decision: approve
+expected_failure_mode: null

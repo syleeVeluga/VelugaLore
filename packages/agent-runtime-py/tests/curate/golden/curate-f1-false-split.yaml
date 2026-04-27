@@ -1,0 +1,24 @@
+id: curate-f1-false-split
+title: "long doc with semantically tight headings should not split"
+scope: wiki/architecture
+fixture: fixtures/curate-f1
+agents_md_relevant_rules:
+  - "split requires heading-to-heading cosine below 0.6"
+  - "tightly coupled headings must remain on one page"
+invocation:
+  slash: /curate scope:wiki/architecture
+  mode: edit
+expected_proposed_ops: []
+forbidden_ops:
+  - kind: split_doc
+    description: "headings cosine 0.78 is above the 0.6 split threshold"
+rationale_must_include:
+  - "cosine"
+  - "below threshold"
+post_invariants_after_apply:
+  - "no split_doc op proposed"
+  - "doc body unchanged"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F1

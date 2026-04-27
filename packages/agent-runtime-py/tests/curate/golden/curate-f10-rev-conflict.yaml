@@ -1,0 +1,26 @@
+id: curate-f10-rev-conflict
+title: "user edits a doc between preview and apply, run regenerates preview"
+scope: wiki/policies
+fixture: fixtures/curate-f10
+agents_md_relevant_rules:
+  - "apply checks rev against the rev recorded at preview time"
+  - "rev mismatch aborts apply and regenerates the preview"
+invocation:
+  slash: /curate scope:wiki/policies
+  mode: edit
+expected_proposed_ops:
+  - kind: merge_docs
+    count_min: 1
+forbidden_ops:
+  - kind: merge_docs
+    description: "apply must not proceed when target doc rev advanced after preview"
+rationale_must_include:
+  - "rev"
+  - "regenerate preview"
+post_invariants_after_apply:
+  - "apply blocked, no ops committed"
+  - "preview regenerated against the new rev"
+post_invariants_after_revert:
+  - "body_sha256 matches pre-run snapshot"
+decision: reject
+expected_failure_mode: F10
