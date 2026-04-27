@@ -3,7 +3,7 @@ section: 14
 title: "마일스톤·로드맵 / Milestones & Roadmap"
 parent: WekiDocs PRD
 status: Draft (implementation-ready)
-last_updated: 2026-04-26
+last_updated: 2026-04-28
 ---
 
 # 14. 마일스톤·로드맵 / Milestones & Roadmap
@@ -27,6 +27,14 @@ last_updated: 2026-04-26
 ### 이연 사유
 
 S-01~S-08은 모두 백엔드/라이브러리 슬라이스로 진행되었고, 슬라이스 카탈로그(§13.3)에 Tauri 셸 스캐폴드를 명시하는 슬라이스가 누락되어 있었다. 이를 별도의 *catch-up* 슬라이스(S-08.5)로 명시하고, M0의 셸 게이트 + M1의 사용성 게이트를 한 번에 검증한다 (§13.7 참조).
+
+### 현재 상태 (2026-04-28)
+
+S-08.5는 Windows 개발자용 실행 파일 생성과 desktop package 문서화까지 진전되었다. 다만 M0/M1에서 이연된 실제 게이트는 **사람이 빈 workspace를 열고 `/draft` patch를 승인해 디스크의 `.md`까지 확인하는 smoke** 이므로, 다음 항목이 통과되기 전에는 M2 게이트를 닫지 않는다.
+
+- `pnpm --filter @weki/desktop dev` 또는 생성된 developer executable로 빈 workspace 열기.
+- `/draft` → patch preview → approval queue 승인 → 2-phase write → 디스크 반영.
+- 같은 markdown 파일의 외부 편집이 5초 안에 renderer로 반영되는지 확인.
 
 ### 이연이 위험을 키우지 않는 이유
 

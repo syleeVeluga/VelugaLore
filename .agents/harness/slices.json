@@ -80,7 +80,7 @@
       "title": "Desktop shell catch-up: first runnable desktop build",
       "milestone": "M2",
       "primary_agents": ["editor-product-engineer", "foundation-architect"],
-      "prd": ["PRD/04-architecture.md", "PRD/07-editor-ui.md", "PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md"],
+      "prd": ["PRD/04-architecture.md", "PRD/07-editor-ui.md", "PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md", "PRD/18-implementation-handoffs.md"],
       "dod": [
         "Tauri 2 shell and React renderer scaffolded under packages/desktop with src-tauri",
         "pnpm --filter @weki/desktop dev opens an empty Tauri window on macOS or Windows",

@@ -1,6 +1,6 @@
 ---
 title: "WekiDocs PRD — 섹션 인덱스"
-last_updated: 2026-04-26
+last_updated: 2026-04-28
 ---
 
 # WekiDocs PRD — 섹션 인덱스
@@ -26,7 +26,7 @@ last_updated: 2026-04-26
 
 - **[00-onepager.md](./00-onepager.md)** — 한 페이지 요약 (투자자·팀 합류 후보·파트너용). 비전 / 5 동사 / 페르소나 / 차별화 / 모델 / 로드맵 / 검증 게이트 / 결정 13개.
 
-## 17개 섹션
+## 18개 섹션
 
 | # | 제목 | 파일 |
 |---|---|---|
@@ -47,12 +47,19 @@ last_updated: 2026-04-26
 | 15 | 수용 기준 / Acceptance Criteria (v1 GA) | [15-acceptance-criteria.md](./15-acceptance-criteria.md) |
 | 16 | 위험 & 가설 / Risks & Assumptions | [16-risks.md](./16-risks.md) |
 | 17 | 부록 / Appendix | [17-appendix.md](./17-appendix.md) |
+| 18 | 구현 핸드오프 / Implementation Handoffs | [18-implementation-handoffs.md](./18-implementation-handoffs.md) |
 
 ## 단일 파일 버전
 
-원본 단일 파일 버전 `../PRD-WekiDocs.md`는 분리 이전 백업입니다. 최신 내용은 이 디렉토리의 개별 섹션 파일들에 있습니다.
+원본 단일 파일 버전 `../PRD-WekiDocs.md`는 분리 이전 백업입니다. 최신 내용은 이 디렉토리의 개별 섹션 파일들과 구현 스냅샷 `18-implementation-handoffs.md`에 있습니다.
 
 ## Changelog
+
+### 2026-04-28 — S-08.5 desktop shell handoff 및 harness traceability 갱신
+- **§13.7.6.1 추가** — S-08.5 현재 상태를 "Windows developer executable 생성 가능, installer/서명은 M5, 수동 `/draft` smoke는 미증명" 으로 명확히 기록.
+- **§14.1 현재 상태 추가** — M0/M1에서 S-08.5로 이연된 데스크톱 셸/`/draft` 게이트가 아직 닫히지 않았음을 마일스톤 문서에 명시.
+- **§18 handoff 추가** — S-08.5 문서·검증 스냅샷, harness validate/list/brief 확인 명령, 남은 acceptance 항목을 기록.
+- **Agent registry/harness 갱신** — S-08.5 brief가 §18 handoff를 읽도록 `slices.json`에 연결하고, `.agents/agents.toml`의 role ownership을 현재 slice map과 정렬.
 
 ### 2026-04-26 — 외부 공유용 1-pager 추가 (`00-onepager.md`)
 - 한 페이지 요약 — 비전 / Problem / Solution(compounding 3축) / 코어 5 동사 / 4 페르소나 / 차별화(vs Obsidian/Notion AI/Claude Code) / 모델·기술 / 24주 로드맵 / 5 가설 검증 / 핵심 결정 13개 / 함께할 분.
