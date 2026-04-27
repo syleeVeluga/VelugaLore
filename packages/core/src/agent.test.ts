@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askPatchSchema, draftPatchSchema, improvePatchSchema } from "./agent.js";
+import { askPatchSchema, draftPatchSchema, improvePatchSchema, ingestPatchSchema } from "./agent.js";
 
 describe("DraftPatch schema", () => {
   it("accepts the S-06 draft op set", () => {
@@ -258,5 +258,141 @@ describe("S-08 agent schemas", () => {
         ]
       })
     ).toThrow("Required");
+  });
+});
+
+describe("S-09a ingest schema", () => {
+  it("accepts an IngestPatch that fans one raw source into 3-10 derived nodes", () => {
+    const parsed = ingestPatchSchema.parse({
+      kind: "Patch",
+      outputSchema: "IngestPatch",
+      agentId: "ingest",
+      requiresApproval: true,
+      rationale: "Raw source was fanned out into reusable wiki nodes.",
+      fanOut: { summary: 1, entities: 1, concepts: 1, updatedExisting: 0 },
+      ops: [
+        {
+          kind: "create_doc",
+          path: "wiki/sources/raw.md",
+          title: "Raw Summary",
+          docKind: "summary",
+          body: "# Raw Summary\n\nSummary.",
+          frontmatter: {
+            kind: "summary",
+            sources: ["raw-1"],
+            importedAt: "2026-04-27T00:00:00.000Z",
+            confidence: 0.8
+          }
+        },
+        {
+          kind: "create_doc",
+          path: "wiki/concepts/policy.md",
+          title: "Policy",
+          docKind: "concept",
+          body: "# Policy\n\nEvidence.",
+          frontmatter: {
+            kind: "concept",
+            sources: ["raw-1"],
+            importedAt: "2026-04-27T00:00:00.000Z",
+            confidence: 0.7
+          }
+        },
+        {
+          kind: "create_doc",
+          path: "wiki/entities/team.md",
+          title: "Team",
+          docKind: "entity",
+          body: "# Team\n\nEvidence.",
+          frontmatter: {
+            kind: "entity",
+            sources: ["raw-1"],
+            importedAt: "2026-04-27T00:00:00.000Z",
+            confidence: 0.7
+          }
+        },
+        {
+          kind: "update_index",
+          indexPath: "wiki/sources/_index.md",
+          entries: [{ path: "wiki/sources/raw.md", title: "Raw Summary", docKind: "summary", sourceDocIds: ["raw-1"] }]
+        },
+        {
+          kind: "append_log",
+          logPath: "wiki/log/ingest.md",
+          line: "2026-04-27T00:00:00.000Z ingested raw-1"
+        }
+      ]
+    });
+
+    expect(parsed.outputSchema).toBe("IngestPatch");
+    expect(parsed.ops.filter((op) => op.kind === "create_doc")).toHaveLength(3);
+  });
+
+  it("rejects ingest output that creates a single wiki node", () => {
+    expect(() =>
+      ingestPatchSchema.parse({
+        kind: "Patch",
+        rationale: "Too little fan-out.",
+        fanOut: { summary: 1, entities: 0, concepts: 0, updatedExisting: 0 },
+        ops: [
+          {
+            kind: "create_doc",
+            path: "wiki/sources/raw.md",
+            title: "Raw Summary",
+            docKind: "summary",
+            body: "# Raw Summary",
+            frontmatter: {
+              kind: "summary",
+              sources: ["raw-1"],
+              importedAt: "2026-04-27T00:00:00.000Z",
+              confidence: 0.8
+            }
+          },
+          { kind: "append_log", line: "logged" }
+        ]
+      })
+    ).toThrow("IngestPatch must create between 3 and 10 wiki nodes");
+  });
+
+  it("rejects ingest output with more than one summary document", () => {
+    const frontmatter = {
+      sources: ["raw-1"],
+      importedAt: "2026-04-27T00:00:00.000Z",
+      confidence: 0.8
+    };
+
+    expect(() =>
+      ingestPatchSchema.parse({
+        kind: "Patch",
+        rationale: "Duplicate summaries should not validate.",
+        fanOut: { summary: 1, entities: 0, concepts: 1, updatedExisting: 0 },
+        ops: [
+          {
+            kind: "create_doc",
+            path: "wiki/sources/raw.md",
+            title: "Raw Summary",
+            docKind: "summary",
+            body: "# Raw Summary",
+            frontmatter: { ...frontmatter, kind: "summary" }
+          },
+          {
+            kind: "create_doc",
+            path: "wiki/sources/raw-copy.md",
+            title: "Raw Copy Summary",
+            docKind: "summary",
+            body: "# Raw Copy Summary",
+            frontmatter: { ...frontmatter, kind: "summary" }
+          },
+          {
+            kind: "create_doc",
+            path: "wiki/concepts/policy.md",
+            title: "Policy",
+            docKind: "concept",
+            body: "# Policy",
+            frontmatter: { ...frontmatter, kind: "concept" }
+          },
+          { kind: "append_log", line: "logged" }
+        ]
+      })
+    ).toThrow("IngestPatch must include exactly one summary document");
   });
 });
