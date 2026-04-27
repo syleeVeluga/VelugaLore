@@ -3,6 +3,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   ApplyPatchDecision,
   ApplyPatchResponse,
+  ManualPageMetadata,
   OpenWorkspaceResponse,
   PendingApproval,
   ReadDocResponse
@@ -14,6 +15,13 @@ export type DesktopApi = {
   openWorkspace(path: string): Promise<OpenWorkspaceResponse>;
   listDocuments(): Promise<WorkspaceDocumentRecord[]>;
   createDoc(path: string, body?: string): Promise<WorkspaceDocumentRecord>;
+  createFolder(path: string): Promise<WorkspaceDocumentRecord>;
+  renameDoc(docId: string, title: string): Promise<WorkspaceDocumentRecord>;
+  moveDoc(docId: string, folderPath: string): Promise<WorkspaceDocumentRecord>;
+  duplicateDoc(docId: string, path?: string): Promise<WorkspaceDocumentRecord>;
+  archiveDoc(docId: string): Promise<WorkspaceDocumentRecord>;
+  restoreDoc(docId: string, path?: string): Promise<WorkspaceDocumentRecord>;
+  updateDocMetadata(docId: string, metadata: ManualPageMetadata): Promise<WorkspaceDocumentRecord>;
   readDoc(docId: string): Promise<ReadDocResponse>;
   runDraft(input: { docId: string; prompt: string; body: string; path: string }): Promise<{ id: string; status: string }>;
   listPendingApprovals(): Promise<PendingApproval[]>;
@@ -47,6 +55,27 @@ export function createTauriDesktopApi(): DesktopApi {
     },
     createDoc(path: string, body = "") {
       return invoke("create_doc", { path, body });
+    },
+    createFolder(path: string) {
+      return invoke("create_folder", { path });
+    },
+    renameDoc(docId: string, title: string) {
+      return invoke("rename_doc", { docId, title });
+    },
+    moveDoc(docId: string, folderPath: string) {
+      return invoke("move_doc", { docId, folderPath });
+    },
+    duplicateDoc(docId: string, path?: string) {
+      return invoke("duplicate_doc", { docId, path });
+    },
+    archiveDoc(docId: string) {
+      return invoke("archive_doc", { docId });
+    },
+    restoreDoc(docId: string, path?: string) {
+      return invoke("restore_doc", { docId, path });
+    },
+    updateDocMetadata(docId: string, metadata: ManualPageMetadata) {
+      return invoke("update_doc_metadata", { docId, metadata });
     },
     readDoc(docId: string) {
       return invoke("read_doc", { docId });

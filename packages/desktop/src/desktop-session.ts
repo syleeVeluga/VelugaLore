@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import {
   applyTwoPhaseDocumentWrite,
@@ -67,6 +67,12 @@ export type PendingApproval = {
   status: string;
 };
 
+export type ManualPageMetadata = {
+  kind?: string;
+  tags?: string[];
+  frontmatter?: Record<string, unknown>;
+};
+
 export type AgentRunResponse = {
   id: string;
   workspaceId: string;
@@ -88,6 +94,7 @@ class MemoryDesktopDocumentStore implements WorkspaceDocumentStore {
   readonly documents = new Map<string, WorkspaceDocumentRecord>();
   readonly versions: DocumentVersionInput[] = [];
   readonly conflicts: WorkspaceSyncConflict[] = [];
+  readonly auditLog: { action: string; docId: string; payload: Record<string, unknown> }[] = [];
 
   addDocument(input: Omit<WorkspaceDocumentRecord, "bodySha256"> & { bodySha256?: string }): WorkspaceDocumentRecord {
     const document = {
@@ -103,6 +110,29 @@ class MemoryDesktopDocumentStore implements WorkspaceDocumentStore {
       source: document.lastEditor
     });
     return document;
+  }
+
+  updateDocumentRecord(
+    docId: string,
+    update: (current: WorkspaceDocumentRecord) => WorkspaceDocumentRecord,
+    action: string,
+    payload: Record<string, unknown>
+  ): WorkspaceDocumentRecord {
+    const current = this.documents.get(docId);
+    if (!current) {
+      throw new Error(`Document not found: ${docId}`);
+    }
+    this.versions.push({
+      docId: current.id,
+      rev: current.rev,
+      body: current.body,
+      bodySha256: current.bodySha256,
+      source: "human"
+    });
+    const updated = update(current);
+    this.documents.set(docId, updated);
+    this.auditLog.push({ action, docId, payload });
+    return updated;
   }
 
   async beginWrite(): Promise<DocumentWriteTransaction> {
@@ -288,6 +318,8 @@ export class DesktopWorkspaceSession {
     const document = store.addDocument({
       id: randomUUID(),
       path: documentPath,
+      title: titleFromDocumentPath(documentPath),
+      kind: "draft",
       body,
       rev: 1,
       lastEditor: "human"
@@ -299,6 +331,155 @@ export class DesktopWorkspaceSession {
       payload: { doc_id: document.id, rev: document.rev, source: "human" }
     });
     return document;
+  }
+
+  async createFolder(input: { path: string }): Promise<WorkspaceDocumentRecord> {
+    const folderPath = normalizeFolderPath(input.path);
+    const indexPath = `${folderPath}/_index.md`;
+    const created = await this.createDoc({ path: indexPath, body: `# ${titleFromDocumentPath(folderPath)}\n` });
+    return this.requireStore().updateDocumentRecord(
+      created.id,
+      (doc) => ({ ...doc, kind: "index", title: titleFromDocumentPath(folderPath) }),
+      "manual.create_folder",
+      { path: folderPath, index_path: indexPath }
+    );
+  }
+
+  async renameDoc(input: { docId: string; title: string }): Promise<WorkspaceDocumentRecord> {
+    const store = this.requireStore();
+    const mirror = this.requireMirror();
+    const current = this.requireDocument(input.docId);
+    const oldPath = current.path;
+    const newPath = `${path.posix.dirname(oldPath)}/${slugify(input.title)}.md`.replace(/^\.\//, "");
+    assertDestinationAvailable(store, mirror, current.id, oldPath, newPath);
+    const updated = store.updateDocumentRecord(
+      current.id,
+      (doc) => ({
+        ...doc,
+        title: input.title,
+        path: newPath,
+        rev: doc.rev + 1,
+        bodySha256: sha256Hex(doc.body),
+        lastEditor: "human"
+      }),
+      "manual.rename",
+      { old_path: oldPath, new_path: newPath, title: input.title }
+    );
+    this.suppressSelfWrite(updated.path, [updated.bodySha256]);
+    if (oldPath !== updated.path) {
+      await mirror.writeDocumentAtomically(updated.path, updated.body, updated.id);
+      await rm(mirror.resolveDocumentPath(oldPath), { force: true }).catch(() => undefined);
+    }
+    this.emit({ type: "doc_changed", payload: { doc_id: updated.id, rev: updated.rev, source: "human" } });
+    return updated;
+  }
+
+  async moveDoc(input: { docId: string; folderPath: string }): Promise<WorkspaceDocumentRecord> {
+    const store = this.requireStore();
+    const mirror = this.requireMirror();
+    const current = this.requireDocument(input.docId);
+    const oldPath = current.path;
+    const folderPath = normalizeFolderPath(input.folderPath);
+    const newPath = `${folderPath}/${path.posix.basename(current.path)}`;
+    assertDestinationAvailable(store, mirror, current.id, oldPath, newPath);
+    const updated = store.updateDocumentRecord(
+      current.id,
+      (doc) => ({ ...doc, path: newPath, rev: doc.rev + 1, lastEditor: "human" }),
+      "manual.move",
+      { old_path: oldPath, new_path: newPath }
+    );
+    this.suppressSelfWrite(updated.path, [updated.bodySha256]);
+    if (oldPath !== updated.path) {
+      await mirror.writeDocumentAtomically(updated.path, updated.body, updated.id);
+      await rm(mirror.resolveDocumentPath(oldPath), { force: true }).catch(() => undefined);
+    }
+    this.emit({ type: "doc_changed", payload: { doc_id: updated.id, rev: updated.rev, source: "human" } });
+    return updated;
+  }
+
+  async duplicateDoc(input: { docId: string; path?: string }): Promise<WorkspaceDocumentRecord> {
+    const current = this.requireDocument(input.docId);
+    const store = this.requireStore();
+    const mirror = this.requireMirror();
+    const duplicatePath = normalizeDocumentPath(input.path ?? nextAvailableCopyPath(store, mirror, current.path));
+    if (pathExists(store, mirror, duplicatePath)) {
+      throw new Error(`Document path already exists: ${duplicatePath}`);
+    }
+    const duplicate = await this.createDoc({ path: duplicatePath, body: current.body });
+    const updated = this.requireStore().updateDocumentRecord(
+      duplicate.id,
+      (doc) => ({
+        ...doc,
+        title: titleFromDocumentPath(duplicatePath),
+        kind: current.kind,
+        frontmatter: stripImportFrontmatter(current.frontmatter),
+        tags: [...(current.tags ?? [])]
+      }),
+      "manual.duplicate",
+      { source_doc_id: current.id, path: duplicatePath }
+    );
+    return updated;
+  }
+
+  async archiveDoc(input: { docId: string; permanent?: boolean }): Promise<WorkspaceDocumentRecord | { deleted: true; docId: string }> {
+    const current = this.requireDocument(input.docId);
+    if (input.permanent) {
+      if (hasIncomingLinks(this.requireStore(), current.id)) {
+        throw new Error("Cannot permanently delete a document with incoming links.");
+      }
+      this.requireStore().documents.delete(current.id);
+      await rm(this.requireMirror().resolveDocumentPath(current.path), { force: true }).catch(() => undefined);
+      return { deleted: true, docId: current.id };
+    }
+    const archivePath = `wiki/_archive/${path.posix.basename(current.path)}`;
+    const archived = await this.moveDoc({ docId: current.id, folderPath: "wiki/_archive" });
+    return this.requireStore().updateDocumentRecord(
+      archived.id,
+      (doc) => ({ ...doc, archivedFrom: current.path, path: archivePath }),
+      "manual.archive",
+      { old_path: current.path, archive_path: archivePath }
+    );
+  }
+
+  async restoreDoc(input: { docId: string; path?: string }): Promise<WorkspaceDocumentRecord> {
+    const current = this.requireDocument(input.docId);
+    const store = this.requireStore();
+    const mirror = this.requireMirror();
+    const oldPath = current.path;
+    const restorePath = normalizeDocumentPath(input.path ?? current.archivedFrom ?? current.path.replace(/^wiki\/_archive\//, "wiki/"));
+    assertDestinationAvailable(store, mirror, current.id, oldPath, restorePath);
+    const restored = store.updateDocumentRecord(
+      current.id,
+      (doc) => ({ ...doc, path: restorePath, archivedFrom: undefined, rev: doc.rev + 1, lastEditor: "human" }),
+      "manual.restore",
+      { restore_path: restorePath }
+    );
+    this.suppressSelfWrite(restored.path, [restored.bodySha256]);
+    if (oldPath !== restored.path) {
+      await mirror.writeDocumentAtomically(restored.path, restored.body, restored.id);
+      await rm(mirror.resolveDocumentPath(oldPath), { force: true }).catch(() => undefined);
+    }
+    this.emit({ type: "doc_changed", payload: { doc_id: restored.id, rev: restored.rev, source: "human" } });
+    return restored;
+  }
+
+  async updateDocMetadata(input: { docId: string; metadata: ManualPageMetadata }): Promise<WorkspaceDocumentRecord> {
+    const updated = this.requireStore().updateDocumentRecord(
+      input.docId,
+      (doc) => ({
+        ...doc,
+        kind: input.metadata.kind ?? doc.kind,
+        tags: input.metadata.tags ?? doc.tags,
+        frontmatter: { ...(doc.frontmatter ?? {}), ...(input.metadata.frontmatter ?? {}) },
+        rev: doc.rev + 1,
+        bodySha256: sha256Hex(doc.body),
+        lastEditor: "human"
+      }),
+      "manual.metadata",
+      { metadata: input.metadata }
+    );
+    this.emit({ type: "doc_changed", payload: { doc_id: updated.id, rev: updated.rev, source: "human" } });
+    return updated;
   }
 
   async runDraft(input: { docId: string; prompt: string; invokedBy?: string }): Promise<AgentRunResponse> {
@@ -398,6 +579,8 @@ export class DesktopWorkspaceSession {
       store.addDocument({
         id: randomUUID(),
         path: documentPath,
+        title: titleFromDocumentPath(documentPath),
+        kind: documentPath.endsWith("/_index.md") ? "index" : "draft",
         body,
         rev: 1,
         lastEditor: "human"
@@ -651,6 +834,72 @@ function normalizeDocumentPath(documentPath: string): string {
     throw new Error(`Invalid document path: ${documentPath}`);
   }
   return normalized;
+}
+
+function normalizeFolderPath(folderPath: string): string {
+  const normalized = folderPath.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized || normalized.split("/").some((part) => part === ".." || part.length === 0)) {
+    throw new Error(`Invalid folder path: ${folderPath}`);
+  }
+  return normalized;
+}
+
+function titleFromDocumentPath(documentPath: string): string {
+  const normalized = documentPath.replaceAll("\\", "/").replace(/\/_index\.md$/i, "");
+  const leaf = normalized.split("/").filter(Boolean).at(-1) ?? "Untitled";
+  const base = leaf.replace(/\.md$/i, "").replace(/[-_]+/g, " ");
+  return base.split(/\s+/).filter(Boolean).map((word) => `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`).join(" ") || "Untitled";
+}
+
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "untitled";
+}
+
+function nextAvailableCopyPath(store: MemoryDesktopDocumentStore, mirror: WorkspaceFileMirror, documentPath: string): string {
+  const dir = path.posix.dirname(documentPath);
+  const ext = path.posix.extname(documentPath) || ".md";
+  const base = path.posix.basename(documentPath, ext);
+  for (let index = 1; index < 1000; index += 1) {
+    const suffix = index === 1 ? "copy" : `copy-${index}`;
+    const leaf = `${base}-${suffix}${ext}`;
+    const candidate = dir === "." ? leaf : `${dir}/${leaf}`;
+    if (!pathExists(store, mirror, candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`Unable to find available copy path for ${documentPath}`);
+}
+
+function assertDestinationAvailable(
+  store: MemoryDesktopDocumentStore,
+  mirror: WorkspaceFileMirror,
+  docId: string,
+  oldPath: string,
+  newPath: string
+): void {
+  if (oldPath === newPath) {
+    return;
+  }
+  if ([...store.documents.values()].some((doc) => doc.id !== docId && doc.path === newPath) || existsSync(mirror.resolveDocumentPath(newPath))) {
+    throw new Error(`Document path already exists: ${newPath}`);
+  }
+}
+
+function pathExists(store: MemoryDesktopDocumentStore, mirror: WorkspaceFileMirror, documentPath: string): boolean {
+  return [...store.documents.values()].some((doc) => doc.path === documentPath) || existsSync(mirror.resolveDocumentPath(documentPath));
+}
+
+function stripImportFrontmatter(frontmatter: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!frontmatter) {
+    return undefined;
+  }
+  const { _import, ...rest } = frontmatter;
+  void _import;
+  return rest;
+}
+
+function hasIncomingLinks(_store: MemoryDesktopDocumentStore, _docId: string): boolean {
+  return false;
 }
 
 async function listMarkdownFiles(root: string): Promise<string[]> {

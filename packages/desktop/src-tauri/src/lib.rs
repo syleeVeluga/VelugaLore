@@ -34,8 +34,13 @@ struct DesktopState {
 struct DocumentRecord {
     id: String,
     path: String,
+    title: Option<String>,
+    kind: Option<String>,
     body: String,
     body_sha256: String,
+    frontmatter: Option<Value>,
+    tags: Option<Vec<String>>,
+    archived_from: Option<String>,
     rev: u32,
     last_editor: String,
 }
@@ -173,8 +178,13 @@ async fn create_doc(
     let document = DocumentRecord {
         id: make_uuid_like(),
         path: doc_path,
+        title: None,
+        kind: Some("draft".to_string()),
         body,
         body_sha256: String::new(),
+        frontmatter: None,
+        tags: None,
+        archived_from: None,
         rev: 1,
         last_editor: "human".to_string(),
     };
@@ -196,6 +206,187 @@ async fn create_doc(
         },
     );
     Ok(document)
+}
+
+#[tauri::command]
+async fn create_folder(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<DocumentRecord, String> {
+    let folder_path = normalize_folder_path(&path)?;
+    let index_path = format!("{folder_path}/_index.md");
+    let mut document = create_doc(app, state.clone(), index_path, Some(format!("# {}\n", title_from_doc_path(&folder_path)))).await?;
+    document.kind = Some("index".to_string());
+    document.title = Some(title_from_doc_path(&folder_path));
+    persist_document_record(&state, document.clone())?;
+    Ok(document)
+}
+
+#[tauri::command]
+async fn rename_doc(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+    title: String,
+) -> Result<DocumentRecord, String> {
+    let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+    let root = guard.root.clone().ok_or_else(|| "workspace is not open".to_string())?;
+    let document = guard.documents.get(&doc_id).cloned().ok_or_else(|| format!("document not found: {doc_id}"))?;
+    let old_path = document.path.clone();
+    let dir = posix_dirname(&old_path);
+    let new_path = format!("{dir}/{}.md", slugify(&title)).trim_start_matches("./").to_string();
+    ensure_destination_available(&root, &guard.documents, &doc_id, &old_path, &new_path)?;
+    let mut updated = document;
+    updated.path = new_path;
+    updated.title = Some(title);
+    updated.rev += 1;
+    updated.last_editor = "human".to_string();
+    guard.self_write_shas.insert(updated.path.clone(), updated.body_sha256.clone());
+    write_doc_file_atomically(&root, &updated.path, &updated.body, &updated.id)?;
+    if old_path != updated.path {
+        let _ = fs::remove_file(root.join(&old_path));
+    }
+    guard.documents.insert(updated.id.clone(), updated.clone());
+    drop(guard);
+    emit_doc_changed(&app, &updated, "human");
+    Ok(updated)
+}
+
+#[tauri::command]
+async fn move_doc(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+    folder_path: String,
+) -> Result<DocumentRecord, String> {
+    let folder_path = normalize_folder_path(&folder_path)?;
+    let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+    let root = guard.root.clone().ok_or_else(|| "workspace is not open".to_string())?;
+    let document = guard.documents.get(&doc_id).cloned().ok_or_else(|| format!("document not found: {doc_id}"))?;
+    let old_path = document.path.clone();
+    let file_name = old_path.rsplit('/').next().ok_or_else(|| "invalid path".to_string())?;
+    let mut updated = document;
+    updated.path = format!("{folder_path}/{file_name}");
+    ensure_destination_available(&root, &guard.documents, &doc_id, &old_path, &updated.path)?;
+    updated.rev += 1;
+    updated.last_editor = "human".to_string();
+    guard.self_write_shas.insert(updated.path.clone(), updated.body_sha256.clone());
+    write_doc_file_atomically(&root, &updated.path, &updated.body, &updated.id)?;
+    if old_path != updated.path {
+        let _ = fs::remove_file(root.join(&old_path));
+    }
+    guard.documents.insert(updated.id.clone(), updated.clone());
+    drop(guard);
+    emit_doc_changed(&app, &updated, "human");
+    Ok(updated)
+}
+
+#[tauri::command]
+async fn duplicate_doc(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+    path: Option<String>,
+) -> Result<DocumentRecord, String> {
+    let source = {
+        let guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+        guard.documents.get(&doc_id).cloned().ok_or_else(|| format!("document not found: {doc_id}"))?
+    };
+    let duplicate_path = {
+        let guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+        let root = guard.root.clone().ok_or_else(|| "workspace is not open".to_string())?;
+        let candidate = match path {
+            Some(path) => normalize_doc_path(&path)?,
+            None => next_available_copy_path(&root, &guard.documents, &source.path)?,
+        };
+        ensure_new_document_path_available(&root, &guard.documents, &candidate)?;
+        candidate
+    };
+    let mut document = create_doc(app, state.clone(), duplicate_path, Some(source.body.clone())).await?;
+    document.kind = source.kind.clone();
+    document.tags = source.tags.clone();
+    document.frontmatter = source.frontmatter.clone().and_then(|value| {
+        let mut object = value.as_object().cloned()?;
+        object.remove("_import");
+        Some(Value::Object(object))
+    });
+    persist_document_record(&state, document.clone())?;
+    Ok(document)
+}
+
+#[tauri::command]
+async fn archive_doc(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+) -> Result<DocumentRecord, String> {
+    let old_path = {
+        let guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+        guard.documents.get(&doc_id).map(|doc| doc.path.clone()).ok_or_else(|| format!("document not found: {doc_id}"))?
+    };
+    let mut archived = move_doc(app, state.clone(), doc_id, "wiki/_archive".to_string()).await?;
+    archived.archived_from = Some(old_path);
+    persist_document_record(&state, archived.clone())?;
+    Ok(archived)
+}
+
+#[tauri::command]
+async fn restore_doc(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+    path: Option<String>,
+) -> Result<DocumentRecord, String> {
+    let restore_path = normalize_doc_path(&{
+        let guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+        let doc = guard.documents.get(&doc_id).ok_or_else(|| format!("document not found: {doc_id}"))?;
+        path.or_else(|| doc.archived_from.clone()).unwrap_or_else(|| doc.path.replacen("wiki/_archive/", "wiki/", 1))
+    })?;
+    let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+    let root = guard.root.clone().ok_or_else(|| "workspace is not open".to_string())?;
+    let document = guard.documents.get(&doc_id).cloned().ok_or_else(|| format!("document not found: {doc_id}"))?;
+    let old_path = document.path.clone();
+    ensure_destination_available(&root, &guard.documents, &doc_id, &old_path, &restore_path)?;
+    let mut updated = document;
+    updated.path = restore_path;
+    updated.archived_from = None;
+    updated.rev += 1;
+    updated.last_editor = "human".to_string();
+    guard.self_write_shas.insert(updated.path.clone(), updated.body_sha256.clone());
+    write_doc_file_atomically(&root, &updated.path, &updated.body, &updated.id)?;
+    if old_path != updated.path {
+        let _ = fs::remove_file(root.join(&old_path));
+    }
+    guard.documents.insert(updated.id.clone(), updated.clone());
+    drop(guard);
+    emit_doc_changed(&app, &updated, "human");
+    Ok(updated)
+}
+
+#[tauri::command]
+async fn update_doc_metadata(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    doc_id: String,
+    metadata: Value,
+) -> Result<DocumentRecord, String> {
+    let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+    let document = guard.documents.get_mut(&doc_id).ok_or_else(|| format!("document not found: {doc_id}"))?;
+    if let Some(kind) = metadata.get("kind").and_then(Value::as_str) {
+        document.kind = Some(kind.to_string());
+    }
+    if let Some(tags) = metadata.get("tags").and_then(Value::as_array) {
+        document.tags = Some(tags.iter().filter_map(Value::as_str).map(str::to_string).collect());
+    }
+    if let Some(frontmatter) = metadata.get("frontmatter") {
+        document.frontmatter = Some(frontmatter.clone());
+    }
+    document.rev += 1;
+    let updated = document.clone();
+    drop(guard);
+    emit_doc_changed(&app, &updated, "human");
+    Ok(updated)
 }
 
 #[tauri::command]
@@ -326,6 +517,13 @@ pub fn run() {
             list_documents,
             read_doc,
             create_doc,
+            create_folder,
+            rename_doc,
+            move_doc,
+            duplicate_doc,
+            archive_doc,
+            restore_doc,
+            update_doc_metadata,
             apply_patch,
             list_pending_approvals
         ])
@@ -346,6 +544,122 @@ fn normalize_doc_path(input: &str) -> Result<String, String> {
         return Err(format!("invalid markdown document path: {input}"));
     }
     Ok(normalized)
+}
+
+fn normalize_folder_path(input: &str) -> Result<String, String> {
+    let normalized = input.replace('\\', "/").trim_matches('/').to_string();
+    if normalized.is_empty() || normalized.split('/').any(|part| part.is_empty() || part == "..") {
+        return Err(format!("invalid folder path: {input}"));
+    }
+    Ok(normalized)
+}
+
+fn title_from_doc_path(input: &str) -> String {
+    let leaf = input
+        .replace('\\', "/")
+        .trim_end_matches("/_index.md")
+        .rsplit('/')
+        .next()
+        .unwrap_or("Untitled")
+        .trim_end_matches(".md")
+        .replace(['-', '_'], " ");
+    leaf.split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn posix_dirname(input: &str) -> String {
+    input.rsplit_once('/').map(|(dir, _)| dir.to_string()).unwrap_or_else(|| ".".to_string())
+}
+
+fn slugify(input: &str) -> String {
+    let mut slug = String::new();
+    let mut last_dash = false;
+    for char in input.chars().flat_map(|char| char.to_lowercase()) {
+        if char.is_alphanumeric() {
+            slug.push(char);
+            last_dash = false;
+        } else if !last_dash {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+    let trimmed = slug.trim_matches('-').to_string();
+    if trimmed.is_empty() { "untitled".to_string() } else { trimmed }
+}
+
+fn next_available_copy_path(root: &Path, documents: &HashMap<String, DocumentRecord>, input: &str) -> Result<String, String> {
+    let dir = posix_dirname(input);
+    let file = input.rsplit('/').next().unwrap_or("Untitled.md");
+    let base = file.trim_end_matches(".md");
+    for index in 1..1000 {
+        let suffix = if index == 1 { "copy".to_string() } else { format!("copy-{index}") };
+        let leaf = format!("{base}-{suffix}.md");
+        let candidate = if dir == "." { leaf } else { format!("{dir}/{leaf}") };
+        if ensure_new_document_path_available(root, documents, &candidate).is_ok() {
+            return Ok(candidate);
+        }
+    }
+    Err(format!("unable to find available copy path for {input}"))
+}
+
+fn ensure_new_document_path_available(
+    root: &Path,
+    documents: &HashMap<String, DocumentRecord>,
+    new_path: &str,
+) -> Result<(), String> {
+    if documents.values().any(|doc| doc.path == new_path) {
+        return Err(format!("document path already exists: {new_path}"));
+    }
+    let target = root.join(new_path);
+    if target.exists() {
+        return Err(format!("document path already exists: {new_path}"));
+    }
+    Ok(())
+}
+
+fn ensure_destination_available(
+    root: &Path,
+    documents: &HashMap<String, DocumentRecord>,
+    doc_id: &str,
+    old_path: &str,
+    new_path: &str,
+) -> Result<(), String> {
+    if old_path == new_path {
+        return Ok(());
+    }
+    if documents.values().any(|doc| doc.id != doc_id && doc.path == new_path) {
+        return Err(format!("document path already exists: {new_path}"));
+    }
+    let target = root.join(new_path);
+    if target.exists() {
+        return Err(format!("document path already exists: {new_path}"));
+    }
+    Ok(())
+}
+
+fn persist_document_record(state: &tauri::State<'_, AppState>, document: DocumentRecord) -> Result<(), String> {
+    let mut guard = state.inner.lock().map_err(|_| "state lock poisoned".to_string())?;
+    guard.documents.insert(document.id.clone(), document);
+    Ok(())
+}
+
+fn emit_doc_changed(app: &tauri::AppHandle, document: &DocumentRecord, source: &str) {
+    let _ = app.emit(
+        "doc_changed",
+        DocChangedPayload {
+            doc_id: document.id.clone(),
+            rev: document.rev,
+            source: source.to_string(),
+        },
+    );
 }
 
 fn write_doc_file_atomically(root: &Path, doc_path: &str, body: &str, doc_id: &str) -> Result<PathBuf, String> {
@@ -439,8 +753,13 @@ fn reconcile_external_path(
         let document = DocumentRecord {
             id: make_uuid_like(),
             path: doc_path,
+            title: None,
+            kind: Some("draft".to_string()),
             body_sha256,
             body,
+            frontmatter: None,
+            tags: None,
+            archived_from: None,
             rev: 1,
             last_editor: "human".to_string(),
         };
@@ -493,8 +812,13 @@ fn collect_markdown_documents(
         let document = DocumentRecord {
             id: make_uuid_like(),
             path: doc_path,
+            title: None,
+            kind: Some("draft".to_string()),
             body_sha256: sha256_hex(body.as_bytes()),
             body,
+            frontmatter: None,
+            tags: None,
+            archived_from: None,
             rev: 1,
             last_editor: "human".to_string(),
         };

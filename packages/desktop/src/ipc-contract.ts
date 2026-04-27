@@ -3,6 +3,13 @@ export const desktopIpcCommands = [
   "list_documents",
   "read_doc",
   "create_doc",
+  "create_folder",
+  "rename_doc",
+  "move_doc",
+  "duplicate_doc",
+  "archive_doc",
+  "restore_doc",
+  "update_doc_metadata",
   "apply_patch",
   "list_pending_approvals"
 ] as const;

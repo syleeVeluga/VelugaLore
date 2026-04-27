@@ -12,6 +12,8 @@ describe("S-08.5 renderer shell", () => {
     expect(html).toContain("Agent");
     expect(html).toContain("Open Workspace");
     expect(html).toContain("Browse");
+    expect(html).toContain("New Folder");
+    expect(html).toContain("Duplicate");
   });
 });
 
@@ -33,6 +35,78 @@ const fakeApi: DesktopApi = {
       bodySha256: "",
       rev: 1,
       lastEditor: "human"
+    };
+  },
+  async createFolder() {
+    return {
+      id: "folder-1",
+      path: "wiki/_index.md",
+      body: "# Wiki\n",
+      bodySha256: "",
+      rev: 1,
+      lastEditor: "human",
+      kind: "index"
+    };
+  },
+  async renameDoc() {
+    return {
+      id: "doc-1",
+      path: "Renamed.md",
+      body: "",
+      bodySha256: "",
+      rev: 2,
+      lastEditor: "human"
+    };
+  },
+  async moveDoc() {
+    return {
+      id: "doc-1",
+      path: "wiki/Untitled.md",
+      body: "",
+      bodySha256: "",
+      rev: 2,
+      lastEditor: "human"
+    };
+  },
+  async duplicateDoc() {
+    return {
+      id: "doc-copy",
+      path: "Untitled-copy.md",
+      body: "",
+      bodySha256: "",
+      rev: 1,
+      lastEditor: "human"
+    };
+  },
+  async archiveDoc() {
+    return {
+      id: "doc-1",
+      path: "wiki/_archive/Untitled.md",
+      body: "",
+      bodySha256: "",
+      rev: 2,
+      lastEditor: "human"
+    };
+  },
+  async restoreDoc() {
+    return {
+      id: "doc-1",
+      path: "Untitled.md",
+      body: "",
+      bodySha256: "",
+      rev: 3,
+      lastEditor: "human"
+    };
+  },
+  async updateDocMetadata() {
+    return {
+      id: "doc-1",
+      path: "Untitled.md",
+      body: "",
+      bodySha256: "",
+      rev: 2,
+      lastEditor: "human",
+      tags: ["manual"]
     };
   },
   async readDoc() {

@@ -8,8 +8,13 @@ export type DocumentVersionSource = WorkspaceEditActor | "sync";
 export interface WorkspaceDocumentRecord {
   id: string;
   path: string;
+  title?: string;
+  kind?: string;
   body: string;
   bodySha256: string;
+  frontmatter?: Record<string, unknown>;
+  tags?: string[];
+  archivedFrom?: string;
   rev: number;
   lastEditor: WorkspaceEditActor;
   hasPendingPatch?: boolean;

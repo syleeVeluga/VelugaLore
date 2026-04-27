@@ -258,3 +258,73 @@ class IngestPatch(AgentModel):
         if not any(isinstance(op, AppendLogOp) for op in self.ops):
             raise ValueError("IngestPatch must append an ingest log entry")
         return self
+
+
+class IaEvidence(AgentModel):
+    source: str = Field(min_length=1)
+    score: float | None = Field(default=None, ge=0, le=1)
+    note: str = Field(min_length=1)
+
+
+class SplitCut(AgentModel):
+    at: int = Field(ge=0)
+    new_path: str = Field(alias="newPath", min_length=1)
+    new_title: str = Field(alias="newTitle", min_length=1)
+    carry_frontmatter: bool = Field(default=True, alias="carryFrontmatter")
+
+
+class SplitDocOp(AgentModel):
+    kind: Literal["split_doc"]
+    doc_id: str = Field(alias="docId", min_length=1)
+    cuts: list[SplitCut] = Field(min_length=1)
+    leave_stub: bool = Field(default=True, alias="leaveStub")
+    evidence: IaEvidence
+
+
+class MergeDocsOp(AgentModel):
+    kind: Literal["merge_docs"]
+    doc_ids: list[Annotated[str, StringConstraints(min_length=1)]] = Field(alias="docIds", min_length=2)
+    into_path: str = Field(alias="intoPath", min_length=1)
+    into_title: str = Field(alias="intoTitle", min_length=1)
+    redirect_strategy: Literal["stub", "tombstone"] = Field(default="stub", alias="redirectStrategy")
+    preserve_history: Literal[True] = Field(alias="preserveHistory")
+    evidence: IaEvidence
+
+
+class MoveDocOp(AgentModel):
+    kind: Literal["move_doc"]
+    doc_id: str = Field(alias="docId", min_length=1)
+    new_path: str = Field(alias="newPath", min_length=1)
+    relink: bool = True
+    leave_stub: bool = Field(default=True, alias="leaveStub")
+    evidence: IaEvidence
+
+
+class AdoptOrphanOp(AgentModel):
+    kind: Literal["adopt_orphan"]
+    doc_id: str = Field(alias="docId", min_length=1)
+    parent_index_doc_id: str = Field(alias="parentIndexDocId", min_length=1)
+    section: str | None = None
+    evidence: IaEvidence
+
+
+CuratePatchOp = SplitDocOp | MergeDocsOp | MoveDocOp | AdoptOrphanOp
+FailureModeId = Literal["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"]
+
+
+class CuratePatch(AgentModel):
+    kind: Literal["Patch"] = "Patch"
+    output_schema: Literal["CuratePatch"] = Field(default="CuratePatch", alias="outputSchema")
+    agent_id: Literal["curate"] = Field(default="curate", alias="agentId")
+    ops: list[CuratePatchOp] = Field(min_length=1, max_length=50)
+    rationale: str = Field(min_length=1)
+    rationale_per_op: list[Annotated[str, StringConstraints(min_length=1)]] = Field(alias="rationalePerOp", min_length=1)
+    requires_approval: Literal[True] = Field(default=True, alias="requiresApproval")
+    preview_html: str | None = Field(default=None, alias="previewHtml")
+    failure_modes_considered: list[FailureModeId] = Field(default_factory=list, alias="failureModesConsidered")
+
+    @model_validator(mode="after")
+    def validate_rationale_alignment(self) -> "CuratePatch":
+        if len(self.rationale_per_op) != len(self.ops):
+            raise ValueError("CuratePatch rationalePerOp must contain one rationale for each IA op")
+        return self
