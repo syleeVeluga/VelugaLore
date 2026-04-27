@@ -51,6 +51,9 @@ describe("S-08.5 desktop workspace session", () => {
       expect(existsSync(path.join(tempRoot, ".weki"))).toBe(true);
       await expect(readFile(path.join(tempRoot, ".weki", "AGENTS.md"), "utf8")).resolves.toContain("default_mode: analyze");
       expect(opened.workspaceId).toMatch(/[0-9a-f-]{36}/);
+      expect(opened.mode).toBe("solo");
+      expect(opened.userId).toMatch(/[0-9a-f-]{36}/);
+      await expect(readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")).resolves.toContain(opened.userId);
       expect(opened.agentServerPort).toBeGreaterThan(0);
       expect(opened.defaultMode).toBe("analyze");
       const health = await fetch(`http://127.0.0.1:${opened.agentServerPort}/health`);
@@ -167,6 +170,27 @@ describe("S-08.5 desktop workspace session", () => {
     const opened = await session.openWorkspace(tempRoot);
 
     expect(opened.defaultMode).toBe("edit");
+  });
+
+  it("reuses the stable Solo identity and audits writes with the active user", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false, devActAsRole: "admin" });
+
+    const firstOpen = await session.openWorkspace(tempRoot);
+    const firstDoc = await session.createDoc({ path: "Solo.md", body: "# Solo\n" });
+    const firstAuditLog = (session as unknown as { store?: { auditLog: Array<{ action: string; actorUserId?: string; actedAsRole?: string }> } }).store?.auditLog ?? [];
+    await session.close();
+
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+    const secondOpen = await session.openWorkspace(tempRoot);
+
+    expect(secondOpen.userId).toBe(firstOpen.userId);
+    expect(firstOpen.actedAsRole).toBe("admin");
+    expect(firstDoc.id).toMatch(/[0-9a-f-]{36}/);
+    await expect(readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")).resolves.toContain(firstOpen.userId);
+    expect(firstAuditLog).toContainEqual(
+      expect.objectContaining({ action: "manual.create_doc", actorUserId: firstOpen.userId, actedAsRole: "admin" })
+    );
   });
 });
 

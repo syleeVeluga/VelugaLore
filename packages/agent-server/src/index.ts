@@ -8,6 +8,7 @@ export * from "./draft-agent.js";
 export * from "./improve-agent.js";
 export * from "./ingest-agent.js";
 export * from "./run-store.js";
+export * from "./session.js";
 export * from "./tool-allowlist.js";
 
 export const agentServerPackage = {

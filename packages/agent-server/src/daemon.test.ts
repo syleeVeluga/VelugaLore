@@ -5,8 +5,10 @@ import {
   InMemoryAgentRunStore,
   InMemoryPatchApprovalStore,
   PatchDecisionDeniedError,
+  applyAgentSessionSqlContext,
   runDraftAgent,
   runIngestAgent,
+  resolveAgentSessionContext,
   SqlAgentRunStore,
   SqlPatchApprovalStore,
   ToolRuntime,
@@ -61,6 +63,53 @@ describe("S-05 agent daemon", () => {
     expect(body).toContain('"status":"ok"');
   });
 
+  it("resolves Solo session identity and strips act-as in production", () => {
+    expect(
+      resolveAgentSessionContext({
+        env: {
+          WEKI_SOLO_USER_ID: "55555555-5555-4555-8555-555555555555",
+          WEKI_DEV_AS_ROLE: "reader",
+          NODE_ENV: "development"
+        } as NodeJS.ProcessEnv
+      })
+    ).toEqual({
+      userId: "55555555-5555-4555-8555-555555555555",
+      actedAsRole: "reader"
+    });
+
+    expect(
+      resolveAgentSessionContext({
+        env: {
+          WEKI_SOLO_USER_ID: "55555555-5555-4555-8555-555555555555",
+          WEKI_DEV_AS_ROLE: "owner",
+          NODE_ENV: "production"
+        } as NodeJS.ProcessEnv
+      })
+    ).toEqual({
+      userId: "55555555-5555-4555-8555-555555555555",
+      actedAsRole: undefined
+    });
+  });
+
+  it("applies app.user_id and dev role override to the SQL session context", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    await applyAgentSessionSqlContext(
+      {
+        async query<Row>(sql: string, values?: unknown[]) {
+          queries.push({ sql, values });
+          return { rows: [] as Row[] };
+        }
+      },
+      { userId: "55555555-5555-4555-8555-555555555555", actedAsRole: "admin" }
+    );
+
+    expect(queries).toEqual([
+      { sql: "SELECT set_config('app.user_id', $1, false)", values: ["55555555-5555-4555-8555-555555555555"] },
+      { sql: "SELECT set_config('app.dev_act_as_enabled', $1, false)", values: ["true"] },
+      { sql: "SELECT set_config('app.role_override', $1, false)", values: ["admin"] }
+    ]);
+  });
+
   it("runs echo and persists the run for later reads", async () => {
     const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore() });
     servers.push(daemon.server);
@@ -75,6 +124,7 @@ describe("S-05 agent daemon", () => {
 
     expect(created.status).toBe(201);
     expect(run.status).toBe("succeeded");
+    expect((await daemon.store.get(run.id))?.invokedBy).toBe("00000000-0000-4000-8000-000000000001");
     expect(run.patch.answer).toBe("ping");
 
     const fetched = await fetch(`${baseUrl}/runs/${run.id}`);
@@ -121,7 +171,12 @@ describe("S-05 agent daemon", () => {
 
   it("exposes proposed patches and records keyboard-driven approval decisions over HTTP", async () => {
     const approvalStore = new InMemoryPatchApprovalStore();
-    const daemon = createAgentDaemon({ store: new InMemoryAgentRunStore(), approvalStore });
+    const sessionUserId = "55555555-5555-4555-8555-555555555555";
+    const daemon = createAgentDaemon({
+      store: new InMemoryAgentRunStore(),
+      approvalStore,
+      session: { userId: sessionUserId }
+    });
     servers.push(daemon.server);
     const baseUrl = await listen(daemon.server);
 
@@ -147,7 +202,7 @@ describe("S-05 agent daemon", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         decision: "applied",
-        decidedBy: "55555555-5555-4555-8555-555555555555",
+        decidedBy: "99999999-9999-4999-8999-999999999999",
         rationale: "Accepted from keyboard shortcut."
       })
     });
@@ -155,7 +210,7 @@ describe("S-05 agent daemon", () => {
 
     expect(decided.status).toBe(200);
     expect(decidedBody.status).toBe("applied");
-    expect(decidedBody.decidedBy).toBe("55555555-5555-4555-8555-555555555555");
+    expect(decidedBody.decidedBy).toBe(sessionUserId);
   });
 
   it("scopes /patches by workspaceId query param", async () => {

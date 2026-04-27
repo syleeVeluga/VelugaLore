@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import type { DevActAsRole } from "@weki/core";
 import type {
   ApplyPatchDecision,
   ApplyPatchResponse,
@@ -26,10 +27,12 @@ export type DesktopApi = {
   runDraft(input: { docId: string; prompt: string; body: string; path: string }): Promise<{ id: string; status: string }>;
   listPendingApprovals(): Promise<PendingApproval[]>;
   applyPatch(runId: string, decision: ApplyPatchDecision): Promise<ApplyPatchResponse>;
+  setDevActAsRole?(role: DevActAsRole | undefined): void;
 };
 
 export function createTauriDesktopApi(): DesktopApi {
   let workspace: OpenWorkspaceResponse | undefined;
+  let devActAsRole: DevActAsRole | undefined;
   const listPendingApprovals = async (): Promise<PendingApproval[]> => {
     if (!workspace) {
       return [];
@@ -86,11 +89,12 @@ export function createTauriDesktopApi(): DesktopApi {
       }
       const response = await fetch(`http://127.0.0.1:${workspace.agentServerPort}/runs`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: agentServerHeaders(devActAsRole),
         body: JSON.stringify({
           workspaceId: workspace.workspaceId,
           agentId: "draft",
           input: input.prompt,
+          invokedBy: workspace.userId,
           context: {
             docId: input.docId,
             path: input.path,
@@ -114,7 +118,7 @@ export function createTauriDesktopApi(): DesktopApi {
       const patch = pending.find((item) => item.agentRunId === runId);
       if (decision === "reject") {
         if (patch) {
-          await decideAgentPatch(workspace.agentServerPort, patch.id, "rejected", workspace.workspaceId);
+          await decideAgentPatch(workspace.agentServerPort, patch.id, "rejected", workspace.userId, devActAsRole);
         }
         return invoke("apply_patch", { runId, decision });
       }
@@ -131,17 +135,28 @@ export function createTauriDesktopApi(): DesktopApi {
         expectedBody: run.invocation?.context?.body
       });
       if (patch && result.status === "applied") {
-        await decideAgentPatch(workspace.agentServerPort, patch.id, "applied", workspace.workspaceId);
+        await decideAgentPatch(workspace.agentServerPort, patch.id, "applied", workspace.userId, devActAsRole);
       }
       return result;
+    },
+    setDevActAsRole(role) {
+      if (import.meta.env.DEV) {
+        devActAsRole = role;
+      }
     }
   };
 }
 
-async function decideAgentPatch(port: number, patchId: string, decision: "applied" | "rejected", decidedBy: string): Promise<void> {
+async function decideAgentPatch(
+  port: number,
+  patchId: string,
+  decision: "applied" | "rejected",
+  decidedBy: string,
+  devActAsRole?: DevActAsRole
+): Promise<void> {
   const response = await fetch(`http://127.0.0.1:${port}/patches/${patchId}/decision`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: agentServerHeaders(devActAsRole),
     body: JSON.stringify({ decision, decidedBy })
   });
   if (!response.ok) {
@@ -158,11 +173,30 @@ function normalizeOpenWorkspaceResponse(value: unknown): OpenWorkspaceResponse {
     agent_server_port?: number;
     defaultMode?: "analyze" | "edit";
     default_mode?: "analyze" | "edit";
+    userId?: string;
+    user_id?: string;
+    displayName?: string;
+    display_name?: string;
+    mode?: "solo";
+    actedAsRole?: OpenWorkspaceResponse["actedAsRole"];
+    acted_as_role?: OpenWorkspaceResponse["actedAsRole"];
   };
   return {
     workspaceId: raw.workspaceId ?? raw.workspace_id ?? "",
     root: raw.root ?? "",
     agentServerPort: raw.agentServerPort ?? raw.agent_server_port ?? 0,
-    defaultMode: raw.defaultMode ?? raw.default_mode ?? "analyze"
+    defaultMode: raw.defaultMode ?? raw.default_mode ?? "analyze",
+    userId: raw.userId ?? raw.user_id ?? "",
+    displayName: raw.displayName ?? raw.display_name ?? "Solo",
+    mode: raw.mode ?? "solo",
+    actedAsRole: raw.actedAsRole ?? raw.acted_as_role
+  };
+}
+
+function agentServerHeaders(devActAsRole?: DevActAsRole): HeadersInit {
+  const devActAsHeaderName = ["x-weki", "dev", "as", "role"].join("-");
+  return {
+    "content-type": "application/json",
+    ...(import.meta.env.DEV && devActAsRole ? { [devActAsHeaderName]: devActAsRole } : {})
   };
 }

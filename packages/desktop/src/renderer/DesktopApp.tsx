@@ -1,4 +1,5 @@
 import { renderSlashMenuItems } from "@weki/editor";
+import type { DevActAsRole } from "@weki/core";
 import { useMemo, useState, type DragEvent } from "react";
 import type { ApplyPatchResponse, PendingApproval } from "../desktop-session.js";
 import type { WorkspaceDocumentRecord } from "../workspace-sync.js";
@@ -16,6 +17,35 @@ type PendingFileAction =
   | { kind: "move"; value: string };
 
 const defaultWorkspacePath = "";
+const devActAsRoles = ["reader", "editor", "admin", "owner"] as const;
+
+function DevActAsPicker({
+  locale,
+  value,
+  onChange
+}: {
+  locale: DesktopLocale;
+  value: DevActAsRole | "";
+  onChange(value: DevActAsRole | ""): void;
+}) {
+  const copy = locale === "ko"
+    ? { actAs: "\uc5ed\ud560 \uc804\ud658", solo: "Solo" }
+    : { actAs: "Act as", solo: "Solo" };
+
+  return (
+    <label className="dev-act-as">
+      <span>{copy.actAs}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value as DevActAsRole | "")}>
+        <option value="">{copy.solo}</option>
+        {devActAsRoles.map((role) => (
+          <option key={role} value={role}>
+            {role}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 function folderOfPath(docPath: string): string {
   const idx = docPath.lastIndexOf("/");
@@ -41,6 +71,7 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
   const [activeRunId, setActiveRunId] = useState<string>();
   const [status, setStatus] = useState(t("desktop.status.ready"));
   const [mode, setMode] = useState<"analyze" | "edit">("analyze");
+  const [devActAsRole, setDevActAsRole] = useState<DevActAsRole | "">("");
   const [commandLine, setCommandLine] = useState("/");
   const [pendingFileAction, setPendingFileAction] = useState<PendingFileAction | null>(null);
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
@@ -268,6 +299,11 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
     setBody(replaceLastSlashToken(body, label));
   }
 
+  function changeDevActAsRole(value: DevActAsRole | "") {
+    setDevActAsRole(value);
+    api.setDevActAsRole?.(value || undefined);
+  }
+
   return (
     <main className="desktop-shell">
       <header className="titlebar">
@@ -289,6 +325,9 @@ export function DesktopApp({ api, locale = "en" }: DesktopAppProps) {
         >
           {mode === "analyze" ? t("desktop.mode.analyze") : t("desktop.mode.edit")}
         </button>
+        {import.meta.env.DEV ? (
+          <DevActAsPicker locale={locale} value={devActAsRole} onChange={changeDevActAsRole} />
+        ) : null}
       </header>
 
       <section className="workspace-grid">
