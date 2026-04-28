@@ -257,6 +257,123 @@ describe("S-05 agent daemon", () => {
     await expect(approvalStore.list({ status: "proposed", workspaceId })).resolves.toHaveLength(1);
   });
 
+  it("delegates ingest to the configured Python runtime in normal mode", async () => {
+    const approvalStore = new InMemoryPatchApprovalStore();
+    let calls = 0;
+    const worker: AgentRuntime = {
+      async run(invocation) {
+        calls += 1;
+        expect(invocation.agentId).toBe("ingest");
+        return {
+          model: "google-gla:gemini-2.5-flash-lite",
+          costTokens: 84,
+          output: {
+            kind: "Patch",
+            outputSchema: "IngestPatch",
+            agentId: "ingest",
+            ops: [
+              {
+                kind: "create_doc",
+                path: "wiki/sources/onboarding.md",
+                title: "Onboarding Summary",
+                docKind: "summary",
+                body: "# Onboarding Summary\n\nRuntime summary.",
+                frontmatter: {
+                  kind: "summary",
+                  sources: ["raw-onboarding"],
+                  importedAt: "2026-04-28T00:00:00.000Z",
+                  confidence: 0.8
+                }
+              },
+              {
+                kind: "create_doc",
+                path: "wiki/concepts/onboarding-policy.md",
+                title: "Onboarding Policy",
+                docKind: "concept",
+                body: "# Onboarding Policy\n\nRuntime concept.",
+                frontmatter: {
+                  kind: "concept",
+                  sources: ["raw-onboarding"],
+                  importedAt: "2026-04-28T00:00:00.000Z",
+                  confidence: 0.72
+                }
+              },
+              {
+                kind: "create_doc",
+                path: "wiki/entities/team.md",
+                title: "Team",
+                docKind: "entity",
+                body: "# Team\n\nRuntime entity.",
+                frontmatter: {
+                  kind: "entity",
+                  sources: ["raw-onboarding"],
+                  importedAt: "2026-04-28T00:00:00.000Z",
+                  confidence: 0.72
+                }
+              },
+              {
+                kind: "update_index",
+                indexPath: "wiki/sources/_index.md",
+                entries: [
+                  {
+                    path: "wiki/sources/onboarding.md",
+                    title: "Onboarding Summary",
+                    docKind: "summary",
+                    sourceDocIds: ["raw-onboarding"]
+                  }
+                ]
+              },
+              {
+                kind: "append_log",
+                line: "2026-04-28T00:00:00.000Z ingested raw-onboarding"
+              }
+            ],
+            fanOut: { summary: 1, entities: 1, concepts: 1, updatedExisting: 0 },
+            rationale: "Generated ingest patch through Python runtime.",
+            requiresApproval: true
+          }
+        };
+      }
+    };
+    const daemon = createAgentDaemon({
+      store: new InMemoryAgentRunStore(),
+      approvalStore,
+      runtime: {
+        env: {
+          OPENAI_API_KEY: "openai-test-key",
+          ANTHROPIC_API_KEY: "anthropic-test-key",
+          GOOGLE_API_KEY: "google-test-key"
+        } as NodeJS.ProcessEnv,
+        worker
+      }
+    });
+
+    const run = await daemon.runAgent({
+      workspaceId,
+      agentId: "ingest",
+      input: "/ingest path:./inbox/onboarding.md",
+      context: {
+        rawSource: {
+          rawId: "raw-onboarding",
+          uri: "file://./inbox/onboarding.md",
+          mime: "text/markdown",
+          sha256: "abc123",
+          bytes: 128,
+          text: "Onboarding policy defines approvals and security review."
+        }
+      }
+    });
+
+    expect(run.status).toBe("succeeded");
+    expect(calls).toBe(1);
+    expect(run.model).toBe("google-gla:gemini-2.5-flash-lite");
+    expect(run.costTokens).toBe(84);
+    expect(run.patch).toMatchObject({ agentId: "ingest", outputSchema: "IngestPatch" });
+    const queued = await approvalStore.list({ status: "proposed", workspaceId });
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.ops.filter((op) => (op as { kind?: string }).kind === "create_doc")).toHaveLength(3);
+  });
+
   it("exposes proposed patches and records keyboard-driven approval decisions over HTTP", async () => {
     const approvalStore = new InMemoryPatchApprovalStore();
     const sessionUserId = "55555555-5555-4555-8555-555555555555";

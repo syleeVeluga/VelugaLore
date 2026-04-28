@@ -101,3 +101,61 @@ PRD와 실제 구현 간의 동기화를 위해 참조됩니다.
 - **PRD 해석 및 변경 사항:**
   - “키 없이 실행 가능”은 당시 구현 상태 설명일 뿐 제품 acceptance 가 아니다.
   - S-08.5는 데스크톱 셸 통합 게이트, S-08.6은 실제 AI agent runtime 게이트로 분리한다.
+
+## Handoff: S-08.6 implementation snapshot before S-09a
+
+- **작업 일자:** 2026-04-28
+- **Slice ID 및 PRD 섹션:**
+  - `S-08.6`: Real LLM provider runtime
+  - 참조: `PRD/04-architecture.md`, `PRD/05-agent-catalog.md`, `PRD/11-security-rbac.md`, `PRD/12-observability.md`, `PRD/13-implementation-guide.md`, `PRD/15-acceptance-criteria.md`
+- **구현 확인 스냅샷:**
+  - 정상 runtime 에서는 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 3종 preflight 를 통과해야 core agent 가 실행된다.
+  - `draft`, `improve`, `ask` 는 `agent-runtime-py` worker 로 위임되고, worker 출력은 `Patch`/`ReadOnlyAnswer` 계약으로 검증된다.
+  - 결정적 출력은 `WEKI_AGENT_RUNTIME=test` 에서만 테스트 경로로 사용한다.
+- **미증명/미해결된 인수 조건:**
+  - 실제 provider key 를 사용한 desktop live smoke 는 이 스냅샷에서 재검증하지 않았다.
+  - Gemini 기본 모델의 `/draft` patch preview → approval queue → 2-phase write → disk `.md` 확인은 수동 smoke 로 남아 있다.
+- **다음 진행 해석:**
+  - S-09a 는 S-08.6의 runtime 경로를 재사용하되, `ingest` 자체의 fan-out/import acceptance 를 별도 slice 로 닫는다.
+
+## Handoff: S-09a IngestAgent and import system operation
+
+- **작업 일자:** 2026-04-28
+- **Slice ID 및 PRD 섹션:**
+  - `S-09a`: IngestAgent and import system operation
+  - 참조: `PRD/05-agent-catalog.md`, `PRD/08-data-model.md`, `PRD/13-implementation-guide.md`, `PRD/15-acceptance-criteria.md`
+- **변경된 파일:**
+  - `README.md`
+  - `PRD/18-implementation-handoffs.md`
+  - `packages/agent-server/src/runtime.ts`
+  - `packages/agent-server/src/daemon.test.ts`
+  - `packages/agent-runtime-py/src/weki_agents/worker.py`
+  - `packages/agent-runtime-py/src/weki_agents/evals/ingest.py`
+  - `packages/agent-runtime-py/tests/test_s09a_ingest.py`
+  - `packages/agent-runtime-py/tests/test_worker.py`
+  - `packages/db/src/import-ops.ts`
+  - `packages/db/src/import-ops.test.ts`
+- **구현 요약:**
+  - 정상 agent runtime 의 Python worker 위임 대상에 `ingest` 를 추가했다. `curate` 는 S-09b까지 정상 runtime 미연결 상태로 유지한다.
+  - Python worker 의 deterministic/live contract 에 `IngestPatch` 를 추가해 `ingest` 도 pydantic 모델 검증 경로를 탄다.
+  - Ingest eval 을 30개 raw 골든셋으로 확장하고, 평균 fan-out 3~10 및 단일 노드 비율 ≤20% gate 를 명시했다.
+  - `/import` 시스템 작업용 run-level planner/apply helper 를 추가했다. 한 run 은 `import_runs` 한 행으로 시작해 문서를 생성하고, `succeeded`/`partial`/`failed`, conflict report, fidelity summary, audit row 를 남긴다.
+  - Markdown/docx-style fidelity 측정에 heading/link/table/numbering score 를 포함했다.
+  - 기존 `rollbackImportRun` 경로는 import run provenance 로 연결된 문서를 한 트랜잭션에서 삭제하고 rollback run/audit row 를 남기는 테스트로 보강했다.
+- **테스트 및 하네스 확인 내역:**
+  - `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate`
+  - `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command brief -Slice S-09a`
+  - `corepack pnpm lint:deps`
+  - `corepack pnpm --filter @weki/core test`
+  - `corepack pnpm --filter @weki/db test`
+  - `corepack pnpm --filter @weki/agent-server test`
+  - `corepack pnpm test`
+  - `corepack pnpm build`
+  - `python -m unittest discover tests` (`packages/agent-runtime-py`, `PYTHONPATH=src`)
+- **미증명/미해결된 인수 조건:**
+  - 실제 PDF/URL/image extraction, OCR, embedding 중복 검사, web fetch approval 는 아직 tool/runtime stub 너머로 검증하지 않았다.
+  - 실제 `.docx` binary parser 를 통한 50개 문서 fidelity 골든셋은 아직 없다. 현재는 추출 후 구조 snapshot 기준의 docx-style fidelity 측정이다.
+  - DB RLS integration test 는 `WEKI_TEST_DATABASE_URL` 미설정으로 skipped 상태다.
+- **PRD 해석 및 변경 사항:**
+  - S-09a 는 import UI 자체가 아니라 DB/runtime system operation loop 를 먼저 닫는 범위로 해석했다.
+  - `import_runs.options.conflict_strategy` 는 현재 안전한 `skip`/`fail` 만 지원한다. 기존 문서 overwrite 는 rollback semantics 가 더 커져 후속 slice 로 남긴다.
