@@ -27,6 +27,9 @@ export type CreateAgentRunOptions =
   | {
       status: "succeeded";
       patch: AgentOutput;
+      model?: string;
+      costTokens?: number;
+      costUsdMicrocents?: bigint;
     }
   | {
       status: "failed";
@@ -110,6 +113,9 @@ export class SqlAgentRunStore implements AgentRunStore {
     const status = options.status ?? "running";
     const patch = options.status === "succeeded" ? options.patch : null;
     const error = options.status === "failed" ? options.error : null;
+    const model = options.status === "succeeded" ? options.model ?? null : null;
+    const costTokens = options.status === "succeeded" ? options.costTokens ?? null : null;
+    const costUsdMicrocents = options.status === "succeeded" ? options.costUsdMicrocents ?? null : null;
     const finishedAt = status === "running" ? null : new Date();
     const result = await this.client.query<AgentRunSqlRow>(
       `
@@ -124,9 +130,12 @@ export class SqlAgentRunStore implements AgentRunStore {
           started_at,
           finished_at,
           error,
-          parent_run_id
+          parent_run_id,
+          model,
+          cost_tokens,
+          cost_usd_microcents
         )
-        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, now(), $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, now(), $8, $9, $10, $11, $12, $13)
         RETURNING
           id,
           workspace_id,
@@ -153,7 +162,10 @@ export class SqlAgentRunStore implements AgentRunStore {
         patch,
         finishedAt,
         error,
-        input.parentRunId ?? null
+        input.parentRunId ?? null,
+        model,
+        costTokens,
+        costUsdMicrocents
       ]
     );
     return requireOne(result.rows);
@@ -237,6 +249,9 @@ export class InMemoryAgentRunStore implements AgentRunStore {
       status,
       patch: options.status === "succeeded" ? options.patch : undefined,
       error: options.status === "failed" ? options.error : undefined,
+      model: options.status === "succeeded" ? options.model : undefined,
+      costTokens: options.status === "succeeded" ? options.costTokens : undefined,
+      costUsdMicrocents: options.status === "succeeded" ? options.costUsdMicrocents : undefined,
       startedAt: new Date(),
       finishedAt: status === "running" ? undefined : new Date()
     };

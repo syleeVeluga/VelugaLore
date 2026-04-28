@@ -3,6 +3,9 @@ import { createAgentDaemon } from "./daemon.js";
 import { runCurateAgent } from "./curate-agent.js";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
+const deterministicRuntime = {
+  runtime: { env: { WEKI_AGENT_RUNTIME: "test" } as NodeJS.ProcessEnv }
+};
 
 describe("S-09b CurateAgent", () => {
   it("proposes only IA ops and never bypasses approval", () => {
@@ -56,7 +59,7 @@ describe("S-09b CurateAgent", () => {
   });
 
   it("stores /curate output in the approval queue instead of applying it", async () => {
-    const daemon = createAgentDaemon();
+    const daemon = createAgentDaemon(deterministicRuntime);
     const run = await daemon.runAgent({
       workspaceId,
       agentId: "curate",
