@@ -1,7 +1,7 @@
 ---
 section: 12
 title: "옵저버빌리티·에이블·비용 / Observability, Evals, Cost"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

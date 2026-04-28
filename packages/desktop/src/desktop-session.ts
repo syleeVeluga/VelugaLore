@@ -1004,7 +1004,7 @@ function hasIncomingLinks(_store: MemoryDesktopDocumentStore, _docId: string): b
   return false;
 }
 
-const DEFAULT_WORKSPACE_AGENTS_MD = `# AGENTS.md - WekiDocs workspace rules
+const DEFAULT_WORKSPACE_AGENTS_MD = `# AGENTS.md - VelugaLore workspace rules
 
 ## 0. Default mode
 default_mode: analyze

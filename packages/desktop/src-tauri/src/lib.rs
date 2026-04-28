@@ -561,7 +561,7 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running WekiDocs desktop shell");
+        .expect("error while running VelugaLore desktop shell");
 }
 
 fn normalize_doc_path(input: &str) -> Result<String, String> {
@@ -693,7 +693,7 @@ fn ensure_workspace_agents_file(root: &Path) -> Result<String, String> {
     if !agents_path.exists() {
         fs::write(
             &agents_path,
-            "# AGENTS.md - WekiDocs workspace rules\n\n## 0. Default mode\ndefault_mode: analyze\n",
+            "# AGENTS.md - VelugaLore workspace rules\n\n## 0. Default mode\ndefault_mode: analyze\n",
         )
         .map_err(|err| err.to_string())?;
         return Ok("analyze".to_string());

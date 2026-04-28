@@ -1,4 +1,4 @@
-# WekiDocs Project Guardrails
+# VelugaLore Project Guardrails
 
 Load this when a slice touches architecture, persistence, security, agents, extensions, or approval behavior.
 

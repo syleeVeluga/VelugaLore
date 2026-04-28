@@ -1,7 +1,7 @@
 ---
 section: 11
 title: "보안·권한·동기화 / Security, RBAC, Sync"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

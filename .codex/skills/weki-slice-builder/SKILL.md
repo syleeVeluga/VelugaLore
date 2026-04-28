@@ -1,11 +1,11 @@
 ---
 name: weki-slice-builder
-description: Use when implementing, planning, reviewing, or validating VelugaLore/WekiDocs PRD slices; scaffolding the TypeScript/Tauri/Postgres/pydantic-ai monorepo; adding core agents, slash commands, extension tiers, evals, approval queue, RBAC, or project development-agent assets; or checking work against WekiDocs PRD guardrails.
+description: Use when implementing, planning, reviewing, or validating VelugaLore PRD slices; scaffolding the TypeScript/Tauri/Postgres/pydantic-ai monorepo; adding core agents, slash commands, extension tiers, evals, approval queue, RBAC, or project development-agent assets; or checking work against VelugaLore PRD guardrails.
 ---
 
 # Weki Slice Builder
 
-Use this skill to turn the WekiDocs PRD into one safe, traceable implementation slice.
+Use this skill to turn the VelugaLore PRD into one safe, traceable implementation slice.
 
 ## Quick Start
 

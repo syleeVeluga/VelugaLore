@@ -1,7 +1,7 @@
 ---
 section: 14
 title: "마일스톤·로드맵 / Milestones & Roadmap"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-28
 ---

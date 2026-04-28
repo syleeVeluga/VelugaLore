@@ -1,9 +1,9 @@
 ---
-title: "WekiDocs PRD — 섹션 인덱스"
+title: "VelugaLore PRD — 섹션 인덱스"
 last_updated: 2026-04-28
 ---
 
-# WekiDocs PRD — 섹션 인덱스
+# VelugaLore PRD — 섹션 인덱스
 
 ## 두 청중을 위한 문서
 
@@ -51,7 +51,7 @@ last_updated: 2026-04-28
 
 ## 단일 파일 버전
 
-원본 단일 파일 버전 `../PRD-WekiDocs.md`는 분리 이전 백업입니다. 최신 내용은 이 디렉토리의 개별 섹션 파일들과 구현 스냅샷 `18-implementation-handoffs.md`에 있습니다.
+원본 단일 파일 버전 `../PRD-VelugaLore.md`는 분리 이전 백업입니다. 최신 내용은 이 디렉토리의 개별 섹션 파일들과 구현 스냅샷 `18-implementation-handoffs.md`에 있습니다.
 
 ## Changelog
 
@@ -138,4 +138,4 @@ last_updated: 2026-04-28
 - **§17 결정로그** — D7 갱신(코어 5개), D9·D10 신설.
 
 ### 2026-04-26 — 분리 작업
-단일 PRD → 17 섹션 + README. 원본 `../PRD-WekiDocs.md` 는 분리 이전 백업.
+단일 PRD → 17 섹션 + README. 원본 `../PRD-VelugaLore.md` 는 분리 이전 백업.

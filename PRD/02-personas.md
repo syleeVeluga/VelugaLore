@@ -1,7 +1,7 @@
 ---
 section: 2
 title: "페르소나와 유스케이스 / Personas & Use Cases"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

@@ -19,7 +19,7 @@ function Find-RepoRoot {
     }
     $dir = $parent
   }
-  throw "Could not find WekiDocs repo root from current directory."
+  throw "Could not find VelugaLore repo root from current directory."
 }
 
 $repoRoot = Find-RepoRoot

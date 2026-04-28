@@ -1,12 +1,12 @@
 ---
-title: "WekiDocs — One-Pager"
+title: "VelugaLore — One-Pager"
 audience: "외부 (투자자·팀 합류 후보·파트너)"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready, v1 GA targeting 2026-Q3)
 last_updated: 2026-04-26
 ---
 
-# WekiDocs
+# VelugaLore
 
 > **옵시디언처럼 보이지만 LLM 이 컴파일러처럼 동작하는 문서 워크스페이스.**
 > *An Obsidian-shaped editor where the LLM is a compiler, agents are slash commands.*
@@ -71,7 +71,7 @@ last_updated: 2026-04-26
 
 ## Differentiation · 차별화
 
-| | WekiDocs | Obsidian | Notion AI | Claude Code |
+| | VelugaLore | Obsidian | Notion AI | Claude Code |
 |---|---|---|---|---|
 | LLM 위치 | 1급 시민 (시스템 컴파일러) | 사이드 패널 플러그인 | 채팅 인터페이스 | 코드베이스 한정 |
 | 데이터 진실 근원 | **Postgres** (검색·인덱스·RLS·감사) | 파일 only | 자체 클라우드 only | 파일 only |
@@ -82,7 +82,7 @@ last_updated: 2026-04-26
 | RBAC + 감사 | 1급 (Postgres RLS) | 없음 | 부분 | 없음 |
 | **첫 도입 시나리오** | **사규/매뉴얼 zip 1:1 import** | 빈 vault 시작 | 빈 워크스페이스 | git repo |
 
-WekiDocs 는 **옵시디언의 손맛 + Claude Code 의 슬래시 명령 + Postgres 의 신뢰성 + pydantic-ai 의 타입 안전 멀티 에이전트** 4가지를 한 데스크톱 앱에 맞춘 첫 번째 제품입니다.
+VelugaLore 는 **옵시디언의 손맛 + Claude Code 의 슬래시 명령 + Postgres 의 신뢰성 + pydantic-ai 의 타입 안전 멀티 에이전트** 4가지를 한 데스크톱 앱에 맞춘 첫 번째 제품입니다.
 
 ---
 
@@ -161,8 +161,8 @@ D1 Postgres 가 진실 근원, 파일은 미러 · D2 Tauri > Electron · D3 Pyt
 
 ---
 
-**Contact**: sylee@veluga.io · [GitHub repo (private until M0)](https://github.com/veluga/wekidocs)
+**Contact**: sylee@veluga.io · [GitHub repo (private until M0)](https://github.com/veluga/velugalore)
 
 > *"Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase."*  — Karpathy
 
-— *WekiDocs — turning every drop of knowledge into a compounding asset.*
+— *VelugaLore — turning every drop of knowledge into a compounding asset.*

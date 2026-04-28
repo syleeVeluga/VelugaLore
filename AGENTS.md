@@ -1,4 +1,4 @@
-# WekiDocs Development Agent Guide
+# VelugaLore Development Agent Guide
 
 이 저장소는 아직 제품 코드보다 PRD가 먼저 있는 구현 준비 단계다. 모든 개발 에이전트는 PRD를 실행 계획으로 취급하고, 한 번에 하나의 vertical slice만 구현한다.
 

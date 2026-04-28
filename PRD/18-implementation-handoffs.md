@@ -1,7 +1,7 @@
 ---
 section: 18
 title: "구현 핸드오프 / Implementation Handoffs"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Living log
 last_updated: 2026-04-28
 ---

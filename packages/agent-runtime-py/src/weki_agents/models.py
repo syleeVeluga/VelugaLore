@@ -1,4 +1,4 @@
-"""Structured output models for WekiDocs agents."""
+"""Structured output models for VelugaLore agents."""
 
 from typing import Annotated, Any, ClassVar, Literal
 

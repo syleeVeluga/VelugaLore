@@ -1,7 +1,7 @@
 ---
 section: 9
 title: "코드 구조 / Code Layout (TypeScript monorepo)"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

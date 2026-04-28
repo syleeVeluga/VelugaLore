@@ -1,7 +1,7 @@
 ---
 section: 5
 title: "에이전트 카탈로그 / Agent Catalog"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -10,7 +10,7 @@ last_updated: 2026-04-26
 
 > **설계 원칙 — 코어는 작게, 확장은 1급 / Small core, first-class extensibility**
 >
-> v1 GA 동봉 코어는 일반 문서 작성에서 **반드시 필요한 동사** 만 둔다. 그 외 모든 동사는 **확장 슬롯**(§10) 으로 — 사용자/조직이 자기 도메인 어휘에 맞게 *덧붙이는* 구조다. WekiDocs 의 가치는 "에이전트가 많다" 가 아니라 "에이전트를 *어떻게* 추가하는지가 직관적이다" 에서 나온다.
+> v1 GA 동봉 코어는 일반 문서 작성에서 **반드시 필요한 동사** 만 둔다. 그 외 모든 동사는 **확장 슬롯**(§10) 으로 — 사용자/조직이 자기 도메인 어휘에 맞게 *덧붙이는* 구조다. VelugaLore 의 가치는 "에이전트가 많다" 가 아니라 "에이전트를 *어떻게* 추가하는지가 직관적이다" 에서 나온다.
 >
 > 모든 에이전트는 (1) 한 가지 동사, (2) 항상 `Patch` 또는 `ReadOnlyAnswer` 만 반환, (3) 자체 시스템 프롬프트를 `workspace/.weki/agents/<id>.md` 에 둔다.
 

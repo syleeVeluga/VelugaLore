@@ -1,7 +1,7 @@
 ---
 section: 6
 title: "슬래시 명령 명세 / Slash Command Spec"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

@@ -1,7 +1,7 @@
 ---
 section: 3
 title: "컨셉 모델 / Conceptual Model"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -13,7 +13,7 @@ last_updated: 2026-04-26
 > **위키는 페이지의 집합이 아니라, *정보 아키텍처 자체가 진화하는 살아있는 구조* 다.**
 > *A wiki is not a set of pages — it is a living information architecture that evolves.*
 
-진짜 위키에서 사람들은 그때그때 새 카테고리를 만들고, 페이지를 분할하고, 분류를 바꾸고, 인덱스를 다시 그린다. WekiDocs 는 그 일을 사람이 *하지 않아도 되도록* 자동화하는 것이 아니라, **사람이 보고 동의하는 형태로 에이전트가 제안하도록** 만든다.
+진짜 위키에서 사람들은 그때그때 새 카테고리를 만들고, 페이지를 분할하고, 분류를 바꾸고, 인덱스를 다시 그린다. VelugaLore 는 그 일을 사람이 *하지 않아도 되도록* 자동화하는 것이 아니라, **사람이 보고 동의하는 형태로 에이전트가 제안하도록** 만든다.
 
 이 명제에서 코어 5개 동사 + 시스템 작업이 자연스럽게 도출된다:
 
@@ -27,9 +27,9 @@ last_updated: 2026-04-26
 
 ## 3.1 Karpathy LLM Wiki 매핑 / Mapping the LLM Wiki idea
 
-Karpathy의 비유 — *"Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase."* — 를 WekiDocs 에서 다음과 같이 구체화한다.
+Karpathy의 비유 — *"Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase."* — 를 VelugaLore 에서 다음과 같이 구체화한다.
 
-| LLM Wiki 개념 | WekiDocs 구현체 |
+| LLM Wiki 개념 | VelugaLore 구현체 |
 |---|---|
 | `raw/` (불변 소스) | `workspace/raw/` 디렉토리 + Postgres `raw_sources` 테이블. 에이전트는 read-only. |
 | `wiki/` (LLM 산출물) | `workspace/wiki/` 디렉토리 + Postgres `documents` 테이블. 에이전트만 쓰기 가능 (사용자도 직접 편집 가능, 모드별 워크플로우 §11.2). |

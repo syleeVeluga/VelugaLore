@@ -1,7 +1,7 @@
 [project]
 name = "weki-agents"
 version = "0.0.0"
-description = "WekiDocs pydantic-ai worker package"
+description = "VelugaLore pydantic-ai worker package"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.0"]
 

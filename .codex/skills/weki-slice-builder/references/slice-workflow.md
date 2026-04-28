@@ -1,6 +1,6 @@
 # Slice Workflow
 
-Load this when selecting, planning, or handing off a WekiDocs implementation slice.
+Load this when selecting, planning, or handing off a VelugaLore implementation slice.
 
 ## Select
 

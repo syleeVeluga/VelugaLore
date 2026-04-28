@@ -1,7 +1,7 @@
 interface:
   display_name: "Weki Slice Builder"
-  short_description: "Build WekiDocs PRD slices safely"
-  default_prompt: "Use $weki-slice-builder to implement the next WekiDocs PRD slice with the project harness."
+  short_description: "Build VelugaLore PRD slices safely"
+  default_prompt: "Use $weki-slice-builder to implement the next VelugaLore PRD slice with the project harness."
 
 policy:
   allow_implicit_invocation: true

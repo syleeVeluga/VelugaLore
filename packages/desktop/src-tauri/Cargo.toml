@@ -1,7 +1,7 @@
 [package]
 name = "weki-desktop"
 version = "0.0.0"
-description = "WekiDocs desktop shell"
+description = "VelugaLore desktop shell"
 authors = ["Veluga"]
 edition = "2021"
 

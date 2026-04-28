@@ -1,7 +1,7 @@
 ---
 section: 15
 title: "수용 기준 / Acceptance Criteria (v1 GA)"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

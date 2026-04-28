@@ -1,4 +1,4 @@
-"""WekiDocs agent runtime package."""
+"""VelugaLore agent runtime package."""
 
 from .ask import AskRequest, create_ask_patch
 from .curate import CurateRequest, create_curate_patch

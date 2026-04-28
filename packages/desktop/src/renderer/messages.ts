@@ -2,7 +2,7 @@ export type DesktopLocale = "en" | "ko";
 
 export const desktopMessages = {
   en: {
-    "desktop.app.title": "WekiDocs",
+    "desktop.app.title": "VelugaLore",
     "desktop.workspace.path": "Workspace path",
     "desktop.workspace.open": "Open Workspace",
     "desktop.workspace.browse": "Browse",
@@ -50,7 +50,7 @@ export const desktopMessages = {
     "desktop.status.error": "Error"
   },
   ko: {
-    "desktop.app.title": "WekiDocs",
+    "desktop.app.title": "VelugaLore",
     "desktop.workspace.path": "워크스페이스 경로",
     "desktop.workspace.open": "워크스페이스 열기",
     "desktop.workspace.browse": "찾아보기",

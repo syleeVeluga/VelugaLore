@@ -1,6 +1,6 @@
-# WekiDocs
+# VelugaLore
 
-PRD-first implementation workspace for WekiDocs.
+PRD-first implementation workspace for VelugaLore.
 
 ## Current Slice
 

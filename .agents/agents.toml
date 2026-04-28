@@ -1,5 +1,5 @@
 version = 1
-project = "WekiDocs"
+project = "VelugaLore"
 prd_root = "PRD"
 harness = "tools/agent-harness.ps1"
 slice_map = ".agents/harness/slices.json"

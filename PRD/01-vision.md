@@ -1,7 +1,7 @@
 ---
 section: 1
 title: "비전과 문제정의 / Vision & Problem Statement"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

@@ -7,7 +7,7 @@ describe("S-08.5 renderer shell", () => {
   it("renders the three-pane desktop surface without a browser DOM", () => {
     const html = renderToString(<DesktopApp api={fakeApi} />);
 
-    expect(html).toContain("WekiDocs");
+    expect(html).toContain("VelugaLore");
     expect(html).toContain("Files");
     expect(html).toContain("Agent");
     expect(html).toContain("Open Workspace");

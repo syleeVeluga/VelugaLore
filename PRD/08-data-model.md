@@ -1,7 +1,7 @@
 ---
 section: 8
 title: "데이터 모델 / Data Model (PostgreSQL 16+)"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---

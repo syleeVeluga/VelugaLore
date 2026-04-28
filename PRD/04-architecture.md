@@ -1,7 +1,7 @@
 ---
 section: 4
 title: "시스템 아키텍처 / System Architecture"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -274,7 +274,7 @@ search_workspace → 의미 (semantic) 랭킹 검색  ← 우리만의 보강
 
 opencode 의 AGENTS.md 는 *"Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility."* 를 명시 — **자동 실행 디폴트, 확인은 예외.** 코드 작업의 효율을 위해 합리적이다.
 
-WekiDocs 는 **반대 방향**을 채택한다 (D11, §17.3):
+VelugaLore 는 **반대 방향**을 채택한다 (D11, §17.3):
 
 > **코어 4가지 디폴트 / Four defaults**
 >
@@ -293,7 +293,7 @@ workspace 는 git 으로 미러된다(옵션, default ON). git 은 **두 번째 
 
 - 모든 patch 적용은 자동 git commit. 메시지 표준: `agent:<id> run:<run_id> · <summary>` 또는 `human:<email> · <summary>`.
 - "이 import_run rollback" → 프로그램이 inverse patch → 새 commit (revert).
-- 깃 푸시는 사용자 토큰 BYO. WekiDocs 는 자체 호스팅 git 운영 안 함.
+- 깃 푸시는 사용자 토큰 BYO. VelugaLore 는 자체 호스팅 git 운영 안 함.
 
 ### 4.3.5 비-목표 / Non-goals
 

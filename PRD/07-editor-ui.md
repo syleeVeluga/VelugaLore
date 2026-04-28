@@ -1,7 +1,7 @@
 ---
 section: 7
 title: "UI/UX (옵시디언 유사) / Obsidian-like UI"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -49,7 +49,7 @@ last_updated: 2026-04-26
 
 ### 7.1.2 수동 페이지·폴더 관리 기본 / Manual page & folder management baseline
 
-WekiDocs 는 `/curate` 가 자동으로 정보 아키텍처를 제안하는 제품이지만, 사용자가 평범하게 Notion/Obsidian 처럼 직접 문서를 만들고 정리할 수 있어야 한다. 이 수동 관리 레이어는 S-09b 의 일부로 검증한다. 이유는 사람이 직접 바꾼 페이지/폴더 구조와 `curate` 가 제안하는 IA op 가 같은 백링크·stub·revert 불변식을 공유해야 하기 때문이다.
+VelugaLore 는 `/curate` 가 자동으로 정보 아키텍처를 제안하는 제품이지만, 사용자가 평범하게 Notion/Obsidian 처럼 직접 문서를 만들고 정리할 수 있어야 한다. 이 수동 관리 레이어는 S-09b 의 일부로 검증한다. 이유는 사람이 직접 바꾼 페이지/폴더 구조와 `curate` 가 제안하는 IA op 가 같은 백링크·stub·revert 불변식을 공유해야 하기 때문이다.
 
 좌측 파일트리는 v1 에서 다음 조작을 기본 제공한다.
 

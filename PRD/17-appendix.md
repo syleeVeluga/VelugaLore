@@ -1,7 +1,7 @@
 ---
 section: 17
 title: "부록 / Appendix"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -61,7 +61,7 @@ last_updated: 2026-04-26
 ## 17.4 라이선스·인용 / Licensing & attribution
 
 - 본 PRD 영감: Andrej Karpathy의 LLM Wiki gist 442a6bf...; anomalyco/opencode (MIT); pydantic/pydantic-ai (MIT); Obsidian (proprietary, 영감만).
-- WekiDocs 자체는 Apache-2.0 (앱), MIT (플러그인 SDK·예제).
+- VelugaLore 자체는 Apache-2.0 (앱), MIT (플러그인 SDK·예제).
 
 ## 17.5 공개 인용 / Public quote (≤15 words)
 

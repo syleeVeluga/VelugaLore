@@ -1,7 +1,7 @@
 ---
 section: 13
 title: "구현 가이드 (AI 코딩 에이전트 + 엔지니어용) / Implementation Guide for AI Coding Agents and Engineers"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-28
 ---

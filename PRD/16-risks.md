@@ -1,7 +1,7 @@
 ---
 section: 16
 title: "위험 & 가설 / Risks & Assumptions"
-parent: WekiDocs PRD
+parent: VelugaLore PRD
 status: Draft (implementation-ready)
 last_updated: 2026-04-26
 ---
@@ -40,7 +40,7 @@ last_updated: 2026-04-26
 - **트리거 신호** — M1 사용성 테스트에서 "Obsidian 을 두고 갈아탈 이유 1순위" 응답 < 50%
 - **완화 단계**:
   - L1: **Obsidian compatibility mode** — 같은 workspace 폴더를 둘 다 마운트, 우리는 `wiki/` 만 소유. Obsidian 사용자가 우리 기능을 *옆에서* 시도 가능.
-  - L2: Obsidian 플러그인 ("WekiDocs Companion") — Obsidian 안에서 코어 5개 동사 호출.
+  - L2: Obsidian 플러그인 ("VelugaLore Companion") — Obsidian 안에서 코어 5개 동사 호출.
   - L3: 차별화 포인트 강화 — `curate` (Obsidian 에 없는 능력), 컴파운딩 `/ask` 누적 (Obsidian RAG 플러그인 대비 우위).
 - **담당자**: 제품 / 마케팅
 - **마지막 점검**: 2026-04-26
@@ -122,7 +122,7 @@ last_updated: 2026-04-26
 - **검증 시점**: M1 (W4–W6) 종료 직후
 - **실험 설계** (5인 사용성 테스트):
   - 참가자: P-STARTUP 2명 + P-IND 1명 + P-EDU 1명 + P-ENT 1명 (모두 비-테크 비중 ≥ 60%).
-  - 시나리오: "5분 안에 '신제품 기획안 1장' 초안을 작성하시오" — 도구 자유 (Word/Notion/Obsidian/WekiDocs).
+  - 시나리오: "5분 안에 '신제품 기획안 1장' 초안을 작성하시오" — 도구 자유 (Word/Notion/Obsidian/VelugaLore).
   - 측정: 시작 → 첫 문단 완성까지 시간, 사용자 인지 노력(NASA-TLX), 만족도(7점).
 - **성공 기준**:
   - 첫 문단 완성 시간 ≤ 2분 (5인 평균)
@@ -179,7 +179,7 @@ last_updated: 2026-04-26
   - 측정:
     - 사규 import 직후 자동 curate 제안 → 승인률
     - 사규 개정 시 curate 제안 정확도(영향받는 다른 정책 추적률)
-    - 의사결정자 인터뷰: "WekiDocs 도입을 어떤 기능으로 정당화했는가?"
+    - 의사결정자 인터뷰: "VelugaLore 도입을 어떤 기능으로 정당화했는가?"
 - **성공 기준**:
   - curate 제안 승인률 ≥ 60%
   - 영향분석 자동화율 ≥ 80% (A14 와 정합)
