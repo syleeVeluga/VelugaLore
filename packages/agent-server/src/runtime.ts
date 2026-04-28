@@ -10,7 +10,7 @@ export const requiredProviderKeyNames = [
 ] as const;
 
 export const coreAgentIds = ["draft", "improve", "ask", "ingest", "curate"] as const;
-export const pythonRuntimeAgentIds = ["draft", "improve", "ask"] as const;
+export const pythonRuntimeAgentIds = ["draft", "improve", "ask", "ingest"] as const;
 
 export type RequiredProviderKeyName = (typeof requiredProviderKeyNames)[number];
 export type CoreAgentId = (typeof coreAgentIds)[number];

@@ -4,9 +4,13 @@ PRD-first implementation workspace for VelugaLore.
 
 ## Current Slice
 
-- Slice: `S-08.6 Real LLM provider runtime`
-- PRD: `PRD/04-architecture.md`, `PRD/05-agent-catalog.md`, `PRD/11-security-rbac.md`, `PRD/12-observability.md`, `PRD/13-implementation-guide.md`, `PRD/15-acceptance-criteria.md`, `PRD/18-implementation-handoffs.md`
-- Goal: make the AI-agent runtime real by routing core agents through pydantic-ai and the required OpenAI, Anthropic, and Google Gemini provider keys.
+- Slice: `S-09a IngestAgent and import system operation`
+- PRD: `PRD/05-agent-catalog.md`, `PRD/08-data-model.md`, `PRD/13-implementation-guide.md`, `PRD/15-acceptance-criteria.md`
+- Goal: open the ingest/import loop by routing `ingest` through the Python worker contract, preserving immutable raw provenance, measuring docx/md import fidelity, and grouping imports in rollbackable `import_runs`.
+
+## Previous Slice Snapshot
+
+`S-08.6 Real LLM provider runtime` is implemented at the contract/runtime boundary for `draft`, `improve`, and `ask`: normal runtime preflights `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY`, delegates to `agent-runtime-py`, and records provider/model metadata when the worker returns it. The remaining proof is still manual/live: a Gemini `/draft` run through desktop approval, 2-phase write, and disk confirmation with real provider keys.
 
 ## Desktop Developer Build
 
@@ -66,7 +70,19 @@ dimensions = 1536
 
 Do not commit `.env` files or workspace config files containing API keys. Per `PRD/11-security-rbac.md`, desktop API keys should ultimately be stored in the OS keychain: Windows Credential Manager, macOS Keychain, or libsecret.
 
-Verified locally:
+Verified locally for S-09a:
+
+- `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate`
+- `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command brief -Slice S-09a`
+- `corepack pnpm lint:deps`
+- `corepack pnpm --filter @weki/core test`
+- `corepack pnpm --filter @weki/db test`
+- `corepack pnpm --filter @weki/agent-server test`
+- `corepack pnpm test`
+- `corepack pnpm build`
+- `python -m unittest discover tests` from `packages/agent-runtime-py` with `PYTHONPATH=src`
+
+Previously verified for the desktop runtime snapshot:
 
 - `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate`
 - `pnpm --filter @weki/desktop build`

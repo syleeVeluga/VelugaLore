@@ -13,7 +13,8 @@ from pydantic import BaseModel
 from .ask import AskRequest, create_ask_patch
 from .draft import DraftRequest, create_draft_patch
 from .improve import ImproveRequest, create_improve_patch
-from .models import AskPatch, DraftPatch, ImprovePatch
+from .ingest import IngestRequest, create_ingest_patch
+from .models import AskPatch, DraftPatch, ImprovePatch, IngestPatch
 
 DEFAULT_MODEL = "google-gla:gemini-2.5-flash-lite"
 TEST_MODEL = "test:deterministic"
@@ -56,6 +57,7 @@ def _run_deterministic_agent(agent_id: Any, invocation: dict[str, Any]) -> BaseM
         "draft": (DraftRequest, create_draft_patch),
         "improve": (ImproveRequest, create_improve_patch),
         "ask": (AskRequest, create_ask_patch),
+        "ingest": (IngestRequest, create_ingest_patch),
     }
     request_type, runner = runners.get(str(agent_id), (None, None))  # type: ignore[assignment]
     if request_type is None or runner is None:
@@ -74,6 +76,7 @@ def _run_live_agent(agent_id: Any, invocation: dict[str, Any]) -> tuple[BaseMode
         "draft": DraftPatch,
         "improve": ImprovePatch,
         "ask": AskPatch,
+        "ingest": IngestPatch,
     }
     output_type = output_types.get(str(agent_id))
     if output_type is None:

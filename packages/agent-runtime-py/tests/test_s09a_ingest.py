@@ -120,6 +120,10 @@ class IngestAgentTest(unittest.TestCase):
         result = evaluate_ingest_agent()
 
         self.assertGreaterEqual(result.score, INGEST_EVAL_THRESHOLD)
+        self.assertGreaterEqual(result.raw_count, 30)
+        self.assertGreaterEqual(result.average_fan_out, 3)
+        self.assertLessEqual(result.average_fan_out, 10)
+        self.assertLessEqual(result.single_node_ratio, 0.2)
         self.assertTrue(result.passed)
 
 
