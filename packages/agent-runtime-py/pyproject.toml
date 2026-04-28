@@ -3,7 +3,7 @@ name = "weki-agents"
 version = "0.0.0"
 description = "VelugaLore pydantic-ai worker package"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.0"]
+dependencies = ["pydantic>=2.0", "pydantic-ai-slim[google]>=1.0.0"]
 
 [build-system]
 requires = ["setuptools>=69"]

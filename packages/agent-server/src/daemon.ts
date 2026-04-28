@@ -28,6 +28,14 @@ import { runImproveAgent } from "./improve-agent.js";
 import { runIngestAgent } from "./ingest-agent.js";
 import { InMemoryAgentRunStore, type AgentRunStore, type StoredAgentRun } from "./run-store.js";
 import {
+  assertCoreAgentProviderKeysReady,
+  assertCoreAgentRuntimeConnected,
+  createPythonAgentRuntime,
+  isPythonRuntimeAgentId,
+  resolveAgentRuntimeConfig,
+  type AgentRuntime
+} from "./runtime.js";
+import {
   applyAgentSessionSqlContext,
   requestActAsRoleFromHeader,
   resolveAgentSessionContext,
@@ -48,6 +56,10 @@ export type AgentDaemonOptions = {
     env?: NodeJS.ProcessEnv;
     nodeEnv?: string;
     sqlClient?: AgentSessionSqlClient;
+  };
+  runtime?: {
+    env?: NodeJS.ProcessEnv;
+    worker?: AgentRuntime;
   };
 };
 
@@ -124,6 +136,10 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
   const store = options.store ?? new InMemoryAgentRunStore();
   const approvalStore = options.approvalStore ?? new InMemoryPatchApprovalStore();
   const toolRuntime = options.toolRuntime ?? new ToolRuntime({});
+  const runtimeConfig = resolveAgentRuntimeConfig({
+    env: options.runtime?.env ?? options.session?.env
+  });
+  const agentRuntime = options.runtime?.worker ?? createPythonAgentRuntime({ env: runtimeConfig.env });
 
   function resolveContext(request?: IncomingMessage): AgentSessionContext {
     return resolveAgentSessionContext({
@@ -147,6 +163,26 @@ export function createAgentDaemon(options: AgentDaemonOptions = {}): AgentDaemon
     });
 
     try {
+      assertCoreAgentProviderKeysReady(parsedInvocation.agentId, runtimeConfig);
+
+      if (runtimeConfig.mode === "normal" && isPythonRuntimeAgentId(parsedInvocation.agentId)) {
+        const runtimeResult = await agentRuntime.run(parsedInvocation);
+        const patch = prepareOutputForApproval(runtimeResult.output, parsedInvocation);
+        const run = await store.create(parsedInvocation, {
+          status: "succeeded",
+          patch,
+          model: runtimeResult.model,
+          costTokens: runtimeResult.costTokens,
+          costUsdMicrocents: runtimeResult.costUsdMicrocents
+        });
+        if (patch.kind === "Patch") {
+          await approvalStore.propose({ run, patch });
+        }
+        return run;
+      }
+
+      assertCoreAgentRuntimeConnected(parsedInvocation.agentId, runtimeConfig);
+
       if (parsedInvocation.agentId === "draft") {
         const patch = withPreviewHtml(runDraftAgent(parsedInvocation), parsedInvocation);
         const run = await store.create(parsedInvocation, {
@@ -359,6 +395,10 @@ function withPreviewHtml<T extends Extract<AgentOutput, { kind: "Patch" }>>(
     );
     return patch;
   }
+}
+
+function prepareOutputForApproval(output: AgentOutput, invocation: AgentRunInvocation): AgentOutput {
+  return output.kind === "Patch" ? withPreviewHtml(output, invocation) : output;
 }
 
 function renderImprovePreviewHtml(

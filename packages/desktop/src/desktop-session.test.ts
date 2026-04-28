@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DesktopWorkspaceSession, type DesktopEvent } from "./desktop-session.js";
+import { DesktopWorkspaceSession, type DesktopEvent, type DesktopWorkspaceSessionOptions } from "./desktop-session.js";
 import { assertDesktopIpcSurface, desktopIpcCommands, desktopIpcEvents } from "./ipc-contract.js";
 import { sha256Hex } from "./workspace-sync.js";
 
@@ -44,7 +44,11 @@ describe("S-08.5 desktop workspace session", () => {
     "opens an empty workspace, creates .weki, and starts agent-server as a subprocess",
     async () => {
       tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
-      session = new DesktopWorkspaceSession({ watcherDebounceMs: 25 });
+      session = new DesktopWorkspaceSession({
+        watcherDebounceMs: 25,
+        env: testRuntimeEnv(),
+        ...agentServerSubprocessOptions()
+      });
 
       const opened = await session.openWorkspace(tempRoot);
 
@@ -66,7 +70,11 @@ describe("S-08.5 desktop workspace session", () => {
     "completes the manual /draft approval flow and keeps disk body_sha256 in parity",
     async () => {
       tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
-      session = new DesktopWorkspaceSession({ watcherDebounceMs: 25 });
+      session = new DesktopWorkspaceSession({
+        watcherDebounceMs: 25,
+        env: testRuntimeEnv(),
+        ...agentServerSubprocessOptions()
+      });
       await session.openWorkspace(tempRoot);
       const doc = await session.createDoc({ path: "Untitled.md" });
 
@@ -193,6 +201,27 @@ describe("S-08.5 desktop workspace session", () => {
     );
   });
 });
+
+function testRuntimeEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, WEKI_AGENT_RUNTIME: "test" };
+}
+
+function agentServerSubprocessOptions(): Partial<Pick<
+  DesktopWorkspaceSessionOptions,
+  "agentServerCommand" | "agentServerArgs"
+>> {
+  if (process.env.npm_execpath && existsSync(process.env.npm_execpath)) {
+    return {};
+  }
+
+  return {
+    agentServerCommand: process.platform === "win32" ? "cmd.exe" : "corepack",
+    agentServerArgs:
+      process.platform === "win32"
+        ? ["/d", "/s", "/c", "corepack", "pnpm", "--filter", "@weki/agent-server", "run", "server", "--"]
+        : ["pnpm", "--filter", "@weki/agent-server", "run", "server", "--"]
+  };
+}
 
 function waitForEvent(
   session: DesktopWorkspaceSession,
