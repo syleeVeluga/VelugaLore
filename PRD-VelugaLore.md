@@ -30,6 +30,9 @@ inspirations:
 license_intent: Apache-2.0 for app, plugins MIT
 ---
 
+> **Legacy backup notice (2026-04-28)**  
+> 이 단일 파일은 PRD 분리 이전 백업입니다. 최신 구현 계획과 결정은 `PRD/` 폴더의 섹션별 문서를 기준으로 합니다. 특히 S-08.6 real LLM provider runtime, D13 Gemini 기본값(`gemini-2.5-flash-lite`), `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`GOOGLE_API_KEY` 3종 preflight 정책은 `PRD/04-architecture.md`, `PRD/13-implementation-guide.md`, `PRD/18-implementation-handoffs.md`를 보세요.
+
 > **두 청중을 분리한다 / Two audiences, kept distinct**
 >
 > 1. **제품의 1차 사용자**는 비-테크 사용자다 — 기업의 정책·제안서 담당자, 학교의 강사·조교, 스타트업의 PM/디자이너, 개인 연구자. 옵시디언처럼 "그냥 글이 쓰이는" 손맛이 1순위이고, 모든 기술 노출(스키마·CLI·플러그인 등)은 기본값에서 보이지 않아야 한다. UX 트레이드오프는 항상 이쪽을 따른다.

@@ -4,9 +4,9 @@ PRD-first implementation workspace for VelugaLore.
 
 ## Current Slice
 
-- Slice: `S-08.5 Desktop shell catch-up: first runnable desktop build`
-- PRD: `PRD/04-architecture.md`, `PRD/07-editor-ui.md`, `PRD/09-code-layout.md`, `PRD/13-implementation-guide.md`, `PRD/14-milestones.md`
-- Goal: provide a first runnable Tauri desktop shell with a React renderer, workspace opening, agent-server subprocess startup, and the approval-first `/draft` smoke path.
+- Slice: `S-08.6 Real LLM provider runtime`
+- PRD: `PRD/04-architecture.md`, `PRD/05-agent-catalog.md`, `PRD/11-security-rbac.md`, `PRD/12-observability.md`, `PRD/13-implementation-guide.md`, `PRD/15-acceptance-criteria.md`, `PRD/18-implementation-handoffs.md`
+- Goal: make the AI-agent runtime real by routing core agents through pydantic-ai and the required OpenAI, Anthropic, and Google Gemini provider keys.
 
 ## Desktop Developer Build
 
@@ -26,16 +26,29 @@ This is a standalone release executable for developer testing, not an installer.
 
 ## LLM Provider Keys
 
-Current S-08.5 builds do not require OpenAI, Anthropic, or Gemini keys to launch. The current `@weki/agent-server` agents are local deterministic implementations used to exercise the Patch/ReadOnlyAnswer contracts and approval flow; they do not call external LLM providers yet.
+Normal VelugaLore development/runtime requires all three first-class provider keys before agent-server starts core agents:
 
-PRD decision D13 still stands for v1 GA: OpenAI, Anthropic, and Gemini are the first-class LLM providers, with OpenAI embeddings first. The intended workspace model selection shape is:
+```powershell
+$env:OPENAI_API_KEY = "..."
+$env:ANTHROPIC_API_KEY = "..."
+$env:GOOGLE_API_KEY = "..."
+```
+
+The earlier contract-only agent implementations are scaffolding for tests and must not be the default product runtime. S-08.6 wires `@weki/agent-server` to `agent-runtime-py` and pydantic-ai so `/draft`, `/improve`, and `/ask` exercise live provider calls while still returning validated `Patch` or `ReadOnlyAnswer` contracts.
+
+PRD decision D13: OpenAI, Anthropic, and Google Gemini are first-class LLM providers, Gemini is the default chat provider, and OpenAI embeddings remain first. The intended workspace model selection shape is:
 
 ```toml
 # workspace/.weki/config.toml
 
+[providers.required]
+openai = true
+anthropic = true
+google = true
+
 [llm.default]
-provider = "anthropic" # openai | anthropic | gemini
-model = "claude-sonnet-4-6"
+provider = "google-gla"
+model = "gemini-2.5-flash-lite"
 
 [llm.fallback]
 provider = "openai"
@@ -51,14 +64,6 @@ model = "text-embedding-3-small"
 dimensions = 1536
 ```
 
-For local development after the pydantic-ai provider integration lands, use process-level secrets only in your shell or OS secret store:
-
-```powershell
-$env:OPENAI_API_KEY = "..."
-$env:ANTHROPIC_API_KEY = "..."
-$env:GEMINI_API_KEY = "..."
-```
-
 Do not commit `.env` files or workspace config files containing API keys. Per `PRD/11-security-rbac.md`, desktop API keys should ultimately be stored in the OS keychain: Windows Credential Manager, macOS Keychain, or libsecret.
 
 Verified locally:
@@ -70,9 +75,10 @@ Verified locally:
 - `pnpm lint:deps`
 - `pnpm --filter @weki/desktop exec tauri info`
 
-Still requiring manual smoke verification for S-08.5:
+Still requiring manual smoke verification for S-08.5/S-08.6:
 
-- End-to-end `/draft` flow from slash command to approved patch on disk.
+- End-to-end live-LLM `/draft` flow from slash command to approved patch on disk.
+- Three-provider preflight for `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY`.
 - Two-phase write parity after approval, including matching `body_sha256`.
 - External markdown edits propagating to the renderer through the S-03 watcher within five seconds.
 

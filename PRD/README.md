@@ -20,7 +20,7 @@ last_updated: 2026-04-28
 - **확장 4단계** — Skill / 마크다운 정의 에이전트 / 플러그인 / MCP (§10.2). 코어 외 모든 동사는 코드 0줄로 추가 가능.
 - **단일 통화** — 에이전트 출력은 항상 `Patch` (§8.4). 본문에 직접 쓰지 않음, 적용은 approval queue 통과 후만.
 - **두 진실 근원의 분리** — Postgres 가 진실 근원, 마크다운 파일은 미러 (D1, §17.3). git 은 export·diff·blame 백엔드.
-- **v1 모델 (D13)** — LLM 3종 (OpenAI · Anthropic · Gemini), embedding 우선은 OpenAI `text-embedding-3-small` (1536d, Matryoshka 1024d truncate 옵션). 사용자 workspace 별 디폴트 + 에이전트별 오버라이드 (§4.4).
+- **v1 모델 (D13)** — OpenAI · Anthropic · Google Gemini 3종을 first-class provider 로 동봉하고 정상 agent runtime 에서는 3종 API key 를 모두 요구한다. 기본 LLM 은 Gemini `gemini-2.5-flash-lite`, embedding 우선은 OpenAI `text-embedding-3-small` (1536d, Matryoshka 1024d truncate 옵션). 사용자 workspace 별 디폴트 + 에이전트별 오버라이드 (§4.4).
 
 ## 외부 공유용 / External-facing
 
@@ -54,6 +54,12 @@ last_updated: 2026-04-28
 원본 단일 파일 버전 `../PRD-VelugaLore.md`는 분리 이전 백업입니다. 최신 내용은 이 디렉토리의 개별 섹션 파일들과 구현 스냅샷 `18-implementation-handoffs.md`에 있습니다.
 
 ## Changelog
+
+### 2026-04-28 — S-08.6 real LLM provider runtime 보정
+- **AI agent 핵심성 보정** — S-08.5의 결정적 테스트 스캐폴딩은 제품 runtime 이 아니며, VelugaLore 의 핵심 가치는 pydantic-ai 기반 실제 OpenAI/Anthropic/Gemini agent 호출에 있음을 명시했다.
+- **S-08.6 신설** — `Real LLM provider runtime` 슬라이스를 §13 카탈로그와 harness 에 추가한다. 정상 runtime 은 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 3종 preflight 를 통과해야 한다.
+- **D13 갱신** — 기본 LLM provider 는 Google Gemini, 현재 기본 모델은 `gemini-2.5-flash-lite`. OpenAI embedding 우선 정책은 유지한다.
+- **handoff 정정** — S-08.5 당시의 provider-key bypass 기록은 구현 상태의 누락 기록일 뿐 acceptance 가 아니며, S-08.6 에서 반드시 닫을 gap 으로 재분류했다.
 
 ### 2026-04-28 — S-08.5 desktop shell handoff 및 harness traceability 갱신
 - **§13.7.6.1 추가** — S-08.5 현재 상태를 "Windows developer executable 생성 가능, installer/서명은 M5, 수동 `/draft` smoke는 미증명" 으로 명확히 기록.

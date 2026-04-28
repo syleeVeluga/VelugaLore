@@ -19,7 +19,7 @@ reads = ["PRD/00-onepager.md", "PRD/13-implementation-guide.md", "PRD/18-impleme
 [[agent]]
 id = "foundation-architect"
 path = ".agents/roles/foundation-architect.md"
-primary_for = ["S-01", "S-05", "S-08.5", "S-13", "package boundaries", "build system", "dependency policy", "CI shape"]
+primary_for = ["S-01", "S-05", "S-08.5", "S-08.6", "S-13", "package boundaries", "build system", "dependency policy", "CI shape"]
 reads = ["PRD/09-code-layout.md", "PRD/13-implementation-guide.md", "PRD/14-milestones.md"]
 
 [[agent]]
@@ -31,13 +31,13 @@ reads = ["PRD/08-data-model.md", "PRD/11-security-rbac.md", "PRD/15-acceptance-c
 [[agent]]
 id = "editor-product-engineer"
 path = ".agents/roles/editor-product-engineer.md"
-primary_for = ["S-04", "S-06", "S-07", "S-08.5", "S-09b", "S-11", "S-12a", "S-12b", "S-13", "S-15", "S-16", "desktop", "web", "editor", "approval queue UI"]
+primary_for = ["S-04", "S-06", "S-07", "S-08.5", "S-08.6", "S-09b", "S-11", "S-12a", "S-12b", "S-13", "S-15", "S-16", "desktop", "web", "editor", "approval queue UI"]
 reads = ["PRD/06-slash-commands.md", "PRD/07-editor-ui.md", "PRD/11-security-rbac.md"]
 
 [[agent]]
 id = "agent-runtime-engineer"
 path = ".agents/roles/agent-runtime-engineer.md"
-primary_for = ["S-05", "S-06", "S-08", "S-09a", "S-09b", "S-10", "S-14a", "S-16", "agent daemon", "pydantic-ai", "core prompts"]
+primary_for = ["S-05", "S-06", "S-08", "S-08.6", "S-09a", "S-09b", "S-10", "S-14a", "S-16", "agent daemon", "pydantic-ai", "core prompts"]
 reads = ["PRD/04-architecture.md", "PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/13-implementation-guide.md"]
 
 [[agent]]
@@ -49,7 +49,7 @@ reads = ["PRD/05-agent-catalog.md", "PRD/10-extension-paths.md", "PRD/11-securit
 [[agent]]
 id = "quality-observability-engineer"
 path = ".agents/roles/quality-observability-engineer.md"
-primary_for = ["S-06", "S-08", "S-09a", "S-09b", "S-16", "S-17", "evals", "OpenTelemetry", "cost", "release gates"]
+primary_for = ["S-06", "S-08", "S-08.6", "S-09a", "S-09b", "S-16", "S-17", "evals", "OpenTelemetry", "cost", "release gates"]
 reads = ["PRD/12-observability.md", "PRD/15-acceptance-criteria.md", "PRD/16-risks.md"]
 
 [[subagent]]

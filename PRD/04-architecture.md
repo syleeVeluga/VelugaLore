@@ -312,17 +312,29 @@ workspace 는 git 으로 미러된다(옵션, default ON). git 은 **두 번째 
 
 ### 4.4.1 LLM provider — v1 GA 동봉 3종 / Three providers shipped in v1
 
-> **결정 (D13, §17.3)** — v1 GA 는 **OpenAI · Anthropic · Gemini** 3개를 1급 provider 로 동봉한다. pydantic-ai 의 model-agnostic 추상화 위에서 사용자가 workspace·에이전트별로 골라 쓴다. 다른 provider(Mistral/Cohere/local Ollama 등)는 v1.5+ 옵션.
+> **결정 (D13, §17.3)** — v1 GA 는 **OpenAI · Anthropic · Google Gemini** 3개를 1급 provider 로 동봉한다. VelugaLore 의 핵심 가치는 AI agent 가 문서 워크플로우를 실제로 수행하는 데 있으므로, 정상 agent runtime 은 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 3종 preflight 를 모두 통과해야 한다. pydantic-ai 의 model-agnostic 추상화 위에서 기본은 Gemini 를 쓰고, workspace·에이전트별 오버라이드를 허용한다. 다른 provider(Mistral/Cohere/local Ollama 등)는 v1.5+ 옵션.
 
 #### 동봉 provider 와 권장 모델
 
-| Provider | 권장 (default) | 비용 1순위 | 품질 1순위 | pydantic-ai ID 형식 |
+| Provider | v1 역할 | 비용 1순위 | 품질 1순위 | pydantic-ai ID 형식 |
 |---|---|---|---|---|
-| **OpenAI** | `gpt-4o-mini` 또는 `gpt-5-mini` (provider 최신) | 동일 | `gpt-5` 류 (provider 최상위) | `openai:<model>` |
-| **Anthropic** | `claude-haiku-4-5` (가성비) | 동일 | `claude-sonnet-4-6` 또는 `claude-opus-4-6` | `anthropic:<model>` |
-| **Google Gemini** | `gemini-2.5-flash` (또는 그 시점 최신 flash) | 동일 | `gemini-2.5-pro` 류 | `gemini:<model>` |
+| **Google Gemini** | **기본 LLM** | `gemini-2.5-flash-lite` | `gemini-3-pro-preview` 또는 최신 pro preview/stable | `google-gla:<model>` |
+| **OpenAI** | 1급 provider + embedding 기본 | `gpt-4o-mini` 또는 `gpt-5-mini` (provider 최신) | `gpt-5` 류 (provider 최상위) | `openai:<model>` |
+| **Anthropic** | 1급 provider + 고품질 agent override | `claude-haiku-4-5` | `claude-sonnet-4-6` 또는 `claude-opus-4-6` | `anthropic:<model>` |
 
-> **모델 ID 명시 정책** — 모델 라인업은 자주 변하므로 PRD 는 *카테고리*(가성비 / 품질 / default)만 고정한다. `workspace/.weki/config.toml` 에 사용자가 *현재 시점의 정확한 모델 ID* 를 적어 사용. provider 가 모델을 deprecate 하면 우리는 README CHANGELOG 로 기본값만 갱신.
+> **모델 ID 명시 정책** — 모델 라인업은 자주 변하므로 PRD 는 *카테고리*(가성비 / 품질 / default)와 현재 권장값만 고정한다. 2026-04-28 기준 Gemini 기본값은 `gemini-2.5-flash-lite` 이다. provider 가 모델을 deprecate 하면 README CHANGELOG 와 `workspace/.weki/config.toml` 기본값을 갱신한다.
+
+#### Runtime key policy
+
+정상 desktop/agent-server runtime 은 다음 3종 key 가 모두 있어야 시작한다.
+
+```powershell
+$env:OPENAI_API_KEY = "..."
+$env:ANTHROPIC_API_KEY = "..."
+$env:GOOGLE_API_KEY = "..."
+```
+
+키 누락은 제품 기능 축소가 아니라 설정 오류다. 데스크톱은 workspace open 또는 agent-server spawn 단계에서 누락 provider 를 명확히 보여주고, agent-server 는 core agent 실행 전에 `PROVIDER_KEY_MISSING` 계열 오류를 반환한다. 결정적 출력은 `WEKI_AGENT_RUNTIME=test` 같은 명시적 테스트 모드에서만 허용하며, 정상 runtime 의 자동 fallback 으로 쓰지 않는다.
 
 #### 에이전트별 권장 모델 매핑 / Default model per agent
 
@@ -343,11 +355,16 @@ workspace 는 git 으로 미러된다(옵션, default ON). git 은 **두 번째 
 ```toml
 # workspace/.weki/config.toml
 
-[llm.default]
-provider = "anthropic"            # openai | anthropic | gemini
-model = "claude-sonnet-4-6"
+[providers.required]
+openai = true
+anthropic = true
+google = true
 
-[llm.fallback]                    # provider 장애 시 자동 전환
+[llm.default]
+provider = "google-gla"
+model = "gemini-2.5-flash-lite"
+
+[llm.fallback]
 provider = "openai"
 model = "gpt-4o-mini"
 
@@ -357,8 +374,8 @@ provider = "anthropic"
 model = "claude-opus-4-6"          # 가장 무거운 일은 가장 큰 모델
 
 [agent.draft]
-provider = "openai"
-model = "gpt-4o-mini"              # 가벼운 일은 빠른 모델
+provider = "google-gla"
+model = "gemini-2.5-flash-lite"
 ```
 
 #### Provider 추상화 — pydantic-ai 활용
@@ -370,7 +387,7 @@ from pydantic_ai import Agent
 def make_agent(agent_id: str, workspace_config: WorkspaceConfig) -> Agent:
     cfg = workspace_config.resolve_model(agent_id)   # 에이전트 → provider/model 결정
     return Agent(
-        f"{cfg.provider}:{cfg.model}",            # e.g., "anthropic:claude-sonnet-4-6"
+        f"{cfg.provider}:{cfg.model}",            # e.g., "google-gla:gemini-2.5-flash-lite"
         deps_type=AgentDeps,
         output_type=PatchOrAnswer,
         instructions=load_prompt(agent_id),       # AGENTS.md + skills + agents/<id>.md

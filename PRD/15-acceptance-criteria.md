@@ -32,11 +32,12 @@ last_updated: 2026-04-26
 - A18 · 비교 정밀도 (`/compare prose`): 골든셋 50쌍의 사람 라벨링과 비교해 aligned paragraph pair F1 ≥ 0.8.
 - A19 · 중복 탐지 (`/duplicates`): 임포트한 200노드 골든셋(중복 그룹 30개 라벨링)에서 precision ≥ 0.9, recall ≥ 0.8 (threshold 0.85 기준).
 - A20 · 클러스터 라벨 (`/cluster`): 자동 라벨이 사람 라벨과 cosine 유사도 ≥ 0.7 인 비율 ≥ 70% (골든셋 20 클러스터).
+- A21 · 실제 LLM agent runtime: 정상 runtime 의 `/draft`, `/improve`, `/ask` 는 pydantic-ai 를 통해 OpenAI/Anthropic/Google Gemini provider 중 설정된 모델을 호출하고, 결정적 테스트 스캐폴딩은 명시적 test runtime flag 없이는 실행되지 않는다. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 중 하나라도 없으면 core agent 실행은 actionable error 로 실패한다.
 
 ## 15.2 성능 / Performance
 
 - P1 · 노트 1만개 workspace 부팅 ≤ 3s (M2 Mac, NVMe).
-- P2 · `/draft` p50 응답 ≤ 4s (claude sonnet 기준), p95 ≤ 9s.
+- P2 · `/draft` p50 응답 ≤ 4s (Gemini 기본 `gemini-2.5-flash-lite` 기준), p95 ≤ 9s.
 - P2.1 · `/curate` (100노드 scope) preview 생성 p50 ≤ 8s, p95 ≤ 20s.
 - P3 · 그래프뷰 5,000 노드 60fps, 50,000 노드 30fps (WebGL).
 - P4 · `/compile --since=24h` 1k dirty 페이지에서 ≤ 60s.

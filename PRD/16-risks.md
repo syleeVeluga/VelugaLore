@@ -49,13 +49,13 @@ last_updated: 2026-04-26
 - **종류**: 비즈니스 / 비용
 - **트리거 신호** — 평균 사용자 월 비용이 월 구독료의 30% 초과
 - **완화 단계**:
-  - L1: provider 추상화(pydantic-ai) + **사용자 BYO 키** 옵션 (§4.4) — 비용을 사용자에게 직접 전달.
-  - L2: 가성비 모델(Haiku/mini/Flash)을 코어 default 로 설정 (§4.4.1).
+  - L1: provider 추상화(pydantic-ai) + **사용자 BYO 키 3종** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) 필수화 (§4.4) — 비용을 사용자에게 직접 전달.
+  - L2: Gemini `gemini-2.5-flash-lite` 를 코어 default 로 설정하고, agent 별로 mini/haiku/pro/sonnet override 를 허용 (§4.4.1).
   - L3: per-agent / per-user 비용 한도 (§12.3.4) + budget 알림.
   - L4: 로컬 임베딩 (`bge-m3-onnx`, §8.5.3) — embedding 비용 0 으로.
   - L5: 응답 캐싱 — 같은 질문은 기존 `kind='qa'` 페이지 재사용 (이미 D7 컴파운딩 설계).
 - **담당자**: 제품 / agent-runtime 팀
-- **마지막 점검**: 2026-04-26
+- **마지막 점검**: 2026-04-28 — S-08.6에서 실제 provider runtime 과 3종 key preflight 를 M2 게이트로 승격.
 
 ### R5 — 플러그인을 통한 데이터 유출
 - **종류**: 보안 / 신뢰
@@ -216,11 +216,11 @@ last_updated: 2026-04-26
 | # | 가정 | 위반 시 영향 |
 |---|---|---|
 | A.1 | LLM 가격은 v1 GA 시점에 추가로 50% 이상 떨어지지 않는다 | budget 정책 재교정 |
-| A.2 | OpenAI / Anthropic / Gemini 가 v1 기간(2026-2027) 내내 안정 운영 | provider 추상화로 완화 |
+| A.2 | OpenAI / Anthropic / Google Gemini 가 v1 기간(2026-2027) 내내 안정 운영 | provider 추상화로 완화 |
 | A.3 | Postgres 16 + pgvector 0.8 가 우리 규모(≤ 1M 노드)에 충분 | R2 완화 단계로 흡수 |
 | A.4 | Tauri 2.x 가 desktop 빌드의 안정 백엔드 | Electron fallback 검토 |
 | A.5 | 비-테크 사용자(P-ENT/P-EDU 다수) 가 마크다운 학습 의지 보유 | UX 단순화 추가 작업 |
-| A.6 | 회사가 자기 데이터를 외부 LLM provider 에 보내는 것을 *허용* (P-ENT) | 로컬 모델 옵션(§8.5.3 v1.5+) 우선 순위 ↑ |
+| A.6 | 회사가 자기 데이터를 OpenAI / Anthropic / Google Gemini 외부 LLM provider 에 보내는 것을 *허용* (P-ENT) | 로컬 모델 옵션(§8.5.3 v1.5+) 우선 순위 ↑ |
 
 A.6 가 가장 risky — P-ENT 일부는 외부 API 자체가 보안 정책 위반일 수 있다. v1.5 의 *로컬 임베딩 + 로컬 LLM* (Ollama 통합) 이 첫 follow-up.
 

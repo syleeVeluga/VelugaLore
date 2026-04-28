@@ -29,12 +29,14 @@ last_updated: 2026-04-26
 
 | Provider | 카테고리 | v1 권장 (모델 ID 는 README CHANGELOG 에서 갱신) |
 |---|---|---|
+| **Google Gemini** | 기본 | `gemini-2.5-flash-lite` (`google-gla`) |
+| **Google Gemini** | 품질 | `gemini-3-pro-preview` 또는 최신 pro preview/stable |
 | **OpenAI** | 가성비 | `gpt-4o-mini` 또는 그 시점 최신 mini |
 | **OpenAI** | 품질 | `gpt-5` 류 (provider 최상위) |
 | **Anthropic** | 가성비 | `claude-haiku-4-5` |
 | **Anthropic** | 품질 | `claude-sonnet-4-6` 또는 `claude-opus-4-6` |
-| **Google Gemini** | 가성비 | `gemini-2.5-flash` |
-| **Google Gemini** | 품질 | `gemini-2.5-pro` 류 |
+
+정상 runtime 필수 환경변수: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
 ### 17.2.3 Embedding provider (D13)
 
@@ -56,7 +58,7 @@ last_updated: 2026-04-26
 - D10 · "curate 는 본문을 안 건드린다" — 본문 수정은 `improve` 의 일. `curate` 는 오로지 정보 아키텍처 op(`split_doc`/`merge_docs`/`move_doc`/`adopt_orphan`/`create_doc(kind=index)`/`update_index`/`replace_section('TOC')`)만 사용 (§8.4).
 - D11 · "자동화 정책은 opencode 의 *반대*" — opencode 는 "묻지 말고 실행" 디폴트, 우리는 "patch 는 항상 approval 통과" 디폴트. 사용자 다수가 비-테크, 데이터는 회사 자산, 실수 비용이 코드보다 크다. 신규 workspace 기본 모드는 `analyze`. (§4.3.3)
 - D12 · "AGENTS.md 형식만 빌리되 도메인은 다르다" — opencode 의 AGENTS.md 는 코드 컨벤션 문서. 우리는 같은 위치(`workspace/.weki/AGENTS.md`)에 *조직 문서 규칙*(용어집·톤·기본 모드·승인 정책)을 둔다. 모든 코어/확장 에이전트의 시스템 프롬프트 앞에 자동 prepend. (§10.2.0)
-- D13 · "v1 GA provider = OpenAI · Anthropic · Gemini, embedding 우선 = OpenAI" — 3개 LLM provider 를 1급 동봉, 사용자 workspace 별 디폴트·에이전트별 오버라이드 가능. 모델 자동 라우팅은 v1.5+ (사용자 명시 선택권 우선). embedding v1 default = OpenAI `text-embedding-3-small` (1536d, Matryoshka 차원 축소 1024d 옵션). 다른 provider 는 v1.5+ 토글. 모델 ID 라인업은 자주 변하므로 PRD 는 *카테고리* 만 고정, 실제 ID 는 README CHANGELOG 와 `workspace/.weki/config.toml` 로 관리. (§4.4.1, §4.4.2, §8.5.3)
+- D13 · "v1 GA provider = OpenAI · Anthropic · Google Gemini, 기본 LLM = Gemini, embedding 우선 = OpenAI" — 3개 LLM provider 를 1급 동봉하고 정상 runtime 은 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 3종 preflight 를 요구한다. 기본 LLM 은 Google Gemini `gemini-2.5-flash-lite` (`google-gla`) 이며, 사용자 workspace 별 디폴트·에이전트별 오버라이드 가능. 모델 자동 라우팅은 v1.5+ (사용자 명시 선택권 우선). embedding v1 default = OpenAI `text-embedding-3-small` (1536d, Matryoshka 차원 축소 1024d 옵션). 다른 provider 는 v1.5+ 토글. 결정적/TestModel output 은 명시적 테스트 runtime 전용이며 제품 fallback 이 아니다. 모델 ID 라인업은 자주 변하므로 PRD 는 *카테고리* 와 현재 권장값만 고정, 실제 ID 는 README CHANGELOG 와 `workspace/.weki/config.toml` 로 관리. (§4.4.1, §4.4.2, §8.5.3)
 
 ## 17.4 라이선스·인용 / Licensing & attribution
 

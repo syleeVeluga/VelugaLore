@@ -88,7 +88,7 @@ VelugaLore 는 **옵시디언의 손맛 + Claude Code 의 슬래시 명령 + Pos
 
 ## Model & Tech · 모델·기술
 
-**LLM 3종 동봉** — OpenAI · Anthropic · Gemini. 사용자 workspace 별 디폴트 + 에이전트별 오버라이드. 자체 모델 학습 없음, provider 추상화는 pydantic-ai.
+**LLM 3종 동봉** — OpenAI · Anthropic · Google Gemini. 정상 agent runtime 은 3종 API key 를 모두 요구한다. 기본 LLM 은 Gemini `gemini-2.5-flash-lite`, 사용자 workspace 별 디폴트 + 에이전트별 오버라이드. 자체 모델 학습 없음, provider 추상화는 pydantic-ai.
 
 **Embedding** — OpenAI `text-embedding-3-small` (1536d, Matryoshka 1024d truncate 옵션). v1.5+ 에서 로컬 `bge-m3-onnx` (data sovereignty).
 
@@ -138,7 +138,7 @@ VelugaLore 는 **옵시디언의 손맛 + Claude Code 의 슬래시 명령 + Pos
 
 > 모든 결정은 PRD §17.3 에 *왜 그렇게 정했는지* 함께 명시 — 향후 흔들리지 않도록.
 
-D1 Postgres 가 진실 근원, 파일은 미러 · D2 Tauri > Electron · D3 Python 워커 분리 · D4 Patch is the only currency · D5 v1 그래프 = 단순 links, triples 차후 · D6 opencode = 레퍼런스 (코드 의존 옵션) · D7 코어 5개 (Karpathy 3축 + 직접 쓰기 2개) · D8 확장 인프라 우선 · D9 ingest ≠ curate · D10 curate 는 본문 안 건드림 · D11 자동화 정책은 opencode 의 *반대* (approval 우선) · D12 AGENTS.md 형식만 차용 · D13 LLM 3 provider + OpenAI embedding 우선
+D1 Postgres 가 진실 근원, 파일은 미러 · D2 Tauri > Electron · D3 Python 워커 분리 · D4 Patch is the only currency · D5 v1 그래프 = 단순 links, triples 차후 · D6 opencode = 레퍼런스 (코드 의존 옵션) · D7 코어 5개 (Karpathy 3축 + 직접 쓰기 2개) · D8 확장 인프라 우선 · D9 ingest ≠ curate · D10 curate 는 본문 안 건드림 · D11 자동화 정책은 opencode 의 *반대* (approval 우선) · D12 AGENTS.md 형식만 차용 · D13 LLM 3 provider 필수 + Gemini 기본 + OpenAI embedding 우선
 
 ---
 

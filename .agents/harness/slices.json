@@ -95,6 +95,32 @@
       "acceptance": ["A4", "U1", "U2"]
     },
     {
+      "id": "S-08.6",
+      "title": "Real LLM provider runtime",
+      "milestone": "M2",
+      "primary_agents": ["agent-runtime-engineer", "foundation-architect", "editor-product-engineer", "quality-observability-engineer"],
+      "subagents": ["agent-eval-check", "security-approval-check"],
+      "prd": [
+        "PRD/04-architecture.md",
+        "PRD/05-agent-catalog.md",
+        "PRD/11-security-rbac.md",
+        "PRD/12-observability.md",
+        "PRD/13-implementation-guide.md",
+        "PRD/15-acceptance-criteria.md",
+        "PRD/18-implementation-handoffs.md"
+      ],
+      "dod": [
+        "Normal agent runtime preflights OPENAI_API_KEY, ANTHROPIC_API_KEY, and GOOGLE_API_KEY before core agents run",
+        "agent-server delegates draft/improve/ask runs to agent-runtime-py pydantic-ai workers instead of TS deterministic scaffolding",
+        "Python worker outputs validate as existing Patch or ReadOnlyAnswer contracts before approval is proposed",
+        "Missing provider keys return actionable desktop/agent-server errors rather than silently falling back",
+        "Deterministic/TestModel behavior is available only behind an explicit test runtime flag",
+        "Live /draft smoke with Gemini default reaches patch preview, approval queue, 2-phase write, and disk .md confirmation",
+        "agent_runs records provider/model and available token/cost metadata"
+      ],
+      "acceptance": ["A21", "P2", "S3", "U1"]
+    },
+    {
       "id": "S-09a",
       "title": "IngestAgent and import system operation",
       "milestone": "M2",
