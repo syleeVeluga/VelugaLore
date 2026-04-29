@@ -335,6 +335,13 @@ export class DesktopWorkspaceSession {
     this.agentProcess = undefined;
   }
 
+  setDevActAsRole(role: DevActAsRole | undefined): void {
+    this.actedAsRole = resolveDevActAsRole({
+      value: role,
+      isProduction: this.isProduction()
+    });
+  }
+
   async listDocuments(): Promise<WorkspaceDocumentRecord[]> {
     return this.requireStore().listDocuments();
   }
@@ -568,7 +575,10 @@ export class DesktopWorkspaceSession {
     const url = new URL(`${this.agentServerBaseUrl()}/patches`);
     url.searchParams.set("status", "proposed");
     url.searchParams.set("workspaceId", this.requireWorkspaceId());
-    const response = await fetchJson<{ patches: PendingApproval[] }>(url, { method: "GET" });
+    const response = await fetchJson<{ patches: PendingApproval[] }>(url, {
+      method: "GET",
+      headers: this.agentServerHeaders({})
+    });
     return response.patches;
   }
 
@@ -583,7 +593,10 @@ export class DesktopWorkspaceSession {
       return { status: "rejected", patchId: pending.id };
     }
 
-    const run = await fetchJson<AgentRunResponse>(`${this.agentServerBaseUrl()}/runs/${runId}`, { method: "GET" });
+    const run = await fetchJson<AgentRunResponse>(`${this.agentServerBaseUrl()}/runs/${runId}`, {
+      method: "GET",
+      headers: this.agentServerHeaders({})
+    });
     if (run.patch?.kind !== "Patch") {
       return { status: "missing", docId: runId };
     }
@@ -680,7 +693,7 @@ export class DesktopWorkspaceSession {
   private async postAgentRun(invocation: AgentRunInvocation): Promise<AgentRunResponse> {
     return fetchJson<AgentRunResponse>(`${this.agentServerBaseUrl()}/runs`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.agentServerHeaders({ "content-type": "application/json" }),
       body: JSON.stringify(invocation)
     });
   }
@@ -693,7 +706,7 @@ export class DesktopWorkspaceSession {
   private async decidePatch(patchId: string, decision: "applied" | "rejected"): Promise<void> {
     await fetchJson(`${this.agentServerBaseUrl()}/patches/${patchId}/decision`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.agentServerHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({
         decision,
         decidedBy: this.requireIdentity().userId
@@ -764,6 +777,18 @@ export class DesktopWorkspaceSession {
       throw new Error("Agent server is not running.");
     }
     return `http://127.0.0.1:${this.agentServerPort}`;
+  }
+
+  private agentServerHeaders(headers: Record<string, string>): Record<string, string> {
+    const devActAsHeaderName = ["x-weki", "dev", "as", "role"].join("-");
+    return {
+      ...headers,
+      ...(!this.isProduction() ? { [devActAsHeaderName]: this.actedAsRole ?? "" } : {})
+    };
+  }
+
+  private isProduction(): boolean {
+    return (this.options.nodeEnv ?? this.options.env?.NODE_ENV ?? process.env.NODE_ENV) === "production";
   }
 }
 
@@ -1026,9 +1051,9 @@ async function ensureLocalUserIdentity(root: string): Promise<LocalUserIdentity>
 
   if (existsSync(userPath)) {
     try {
-      const parsed = localUserIdentitySchema.safeParse(JSON.parse(await readFile(userPath, "utf8")));
-      if (parsed.success) {
-        return parsed.data;
+      const parsed = parseLocalUserIdentityFile(JSON.parse(await readFile(userPath, "utf8")));
+      if (parsed) {
+        return parsed;
       }
     } catch {
       // A corrupt local identity is rebuilt below and kept local to this workspace.
@@ -1041,8 +1066,45 @@ async function ensureLocalUserIdentity(root: string): Promise<LocalUserIdentity>
     displayName: os.userInfo().username || "Solo",
     provisionedAt: new Date().toISOString()
   });
-  await writeFile(userPath, `${JSON.stringify(identity, null, 2)}\n`, "utf8");
+  await writeFile(userPath, `${JSON.stringify({
+    version: 1,
+    user_id: identity.userId,
+    display_name: identity.displayName,
+    provisioned_at: identity.provisionedAt
+  }, null, 2)}\n`, "utf8");
   return identity;
+}
+
+function parseLocalUserIdentityFile(value: unknown): LocalUserIdentity | undefined {
+  const parsed = localUserIdentitySchema.safeParse(value);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const userId = typeof raw.user_id === "string" ? raw.user_id : typeof raw.userId === "string" ? raw.userId : undefined;
+  const displayName = typeof raw.display_name === "string"
+    ? raw.display_name
+    : typeof raw.displayName === "string"
+      ? raw.displayName
+      : undefined;
+  const provisionedAt = typeof raw.provisioned_at === "string"
+    ? raw.provisioned_at
+    : typeof raw.provisionedAt === "string"
+      ? raw.provisionedAt
+      : "1970-01-01T00:00:00.000Z";
+  if (!userId || !displayName) {
+    return undefined;
+  }
+  return localUserIdentitySchema.parse({
+    version: 1,
+    userId,
+    displayName,
+    provisionedAt
+  });
 }
 
 function parseWorkspaceDefaultMode(body: string): WorkspaceInteractionMode {

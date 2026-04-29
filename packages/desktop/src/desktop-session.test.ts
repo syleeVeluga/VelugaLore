@@ -57,7 +57,8 @@ describe("S-08.5 desktop workspace session", () => {
       expect(opened.workspaceId).toMatch(/[0-9a-f-]{36}/);
       expect(opened.mode).toBe("solo");
       expect(opened.userId).toMatch(/[0-9a-f-]{36}/);
-      await expect(readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")).resolves.toContain(opened.userId);
+      const userJson = JSON.parse(await readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")) as { user_id?: string };
+      expect(userJson.user_id).toBe(opened.userId);
       expect(opened.agentServerPort).toBeGreaterThan(0);
       expect(opened.defaultMode).toBe("analyze");
       const health = await fetch(`http://127.0.0.1:${opened.agentServerPort}/health`);
@@ -195,10 +196,75 @@ describe("S-08.5 desktop workspace session", () => {
     expect(secondOpen.userId).toBe(firstOpen.userId);
     expect(firstOpen.actedAsRole).toBe("admin");
     expect(firstDoc.id).toMatch(/[0-9a-f-]{36}/);
-    await expect(readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")).resolves.toContain(firstOpen.userId);
+    const userJson = JSON.parse(await readFile(path.join(tempRoot, ".weki", "user.json"), "utf8")) as { user_id?: string };
+    expect(userJson.user_id).toBe(firstOpen.userId);
     expect(firstAuditLog).toContainEqual(
       expect.objectContaining({ action: "manual.create_doc", actorUserId: firstOpen.userId, actedAsRole: "admin" })
     );
+  });
+
+  it("updates dev act-as for subsequent local write audit payloads", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+    const opened = await session.openWorkspace(tempRoot);
+
+    session.setDevActAsRole("reader");
+    await session.createDoc({ path: "Reader.md", body: "# Reader\n" });
+
+    const auditLog = (session as unknown as { store?: { auditLog: Array<{ action: string; actorUserId?: string; actedAsRole?: string }> } }).store?.auditLog ?? [];
+    expect(auditLog).toContainEqual(
+      expect.objectContaining({ action: "manual.create_doc", actorUserId: opened.userId, actedAsRole: "reader" })
+    );
+  });
+
+  it("sends an explicit empty act-as header after returning to Solo", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false, devActAsRole: "admin" });
+    await session.openWorkspace(tempRoot);
+
+    const headersForAgentServer = () =>
+      (session as unknown as { agentServerHeaders(headers: Record<string, string>): Record<string, string> })
+        .agentServerHeaders({ "content-type": "application/json" });
+    const devActAsHeaderName = ["x-weki", "dev", "as", "role"].join("-");
+
+    expect(headersForAgentServer()[devActAsHeaderName]).toBe("admin");
+    session.setDevActAsRole(undefined);
+    expect(headersForAgentServer()[devActAsHeaderName]).toBe("");
+  });
+
+  it("ignores runtime dev act-as changes in production sessions", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false, nodeEnv: "production" });
+    const opened = await session.openWorkspace(tempRoot);
+
+    session.setDevActAsRole("owner");
+    await session.createDoc({ path: "Production.md", body: "# Production\n" });
+
+    const auditLog = (session as unknown as { store?: { auditLog: Array<{ action: string; actorUserId?: string; actedAsRole?: string }> } }).store?.auditLog ?? [];
+    expect(auditLog).toContainEqual(
+      expect.objectContaining({ action: "manual.create_doc", actorUserId: opened.userId, actedAsRole: undefined })
+    );
+  });
+
+  it("reuses a legacy camelCase Solo identity file", async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+    await mkdir(path.join(tempRoot, ".weki"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, ".weki", "user.json"),
+      JSON.stringify({
+        version: 1,
+        userId: "55555555-5555-4555-8555-555555555555",
+        displayName: "Legacy Solo",
+        provisionedAt: "2026-04-28T00:00:00.000Z"
+      }),
+      "utf8"
+    );
+    session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
+
+    const opened = await session.openWorkspace(tempRoot);
+
+    expect(opened.userId).toBe("55555555-5555-4555-8555-555555555555");
+    expect(opened.displayName).toBe("Legacy Solo");
   });
 });
 

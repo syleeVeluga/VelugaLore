@@ -95,6 +95,30 @@ describe("S-05 agent daemon", () => {
     });
   });
 
+  it("lets an explicit empty act-as request clear an env-provided dev role", () => {
+    expect(
+      resolveAgentSessionContext({
+        env: {
+          WEKI_SOLO_USER_ID: "55555555-5555-4555-8555-555555555555",
+          WEKI_DEV_AS_ROLE: "admin",
+          NODE_ENV: "development"
+        } as NodeJS.ProcessEnv,
+        requestActAsRole: undefined
+      }).actedAsRole
+    ).toBe("admin");
+
+    expect(
+      resolveAgentSessionContext({
+        env: {
+          WEKI_SOLO_USER_ID: "55555555-5555-4555-8555-555555555555",
+          WEKI_DEV_AS_ROLE: "admin",
+          NODE_ENV: "development"
+        } as NodeJS.ProcessEnv,
+        requestActAsRole: null
+      }).actedAsRole
+    ).toBeUndefined();
+  });
+
   it("applies app.user_id and dev role override to the SQL session context", async () => {
     const queries: { sql: string; values?: unknown[] }[] = [];
     await applyAgentSessionSqlContext(
@@ -108,9 +132,29 @@ describe("S-05 agent daemon", () => {
     );
 
     expect(queries).toEqual([
-      { sql: "SELECT set_config('app.user_id', $1, false)", values: ["55555555-5555-4555-8555-555555555555"] },
-      { sql: "SELECT set_config('app.dev_act_as_enabled', $1, false)", values: ["true"] },
-      { sql: "SELECT set_config('app.role_override', $1, false)", values: ["admin"] }
+      { sql: "SELECT set_config('app.user_id', $1, $2)", values: ["55555555-5555-4555-8555-555555555555", false] },
+      { sql: "SELECT set_config('app.dev_act_as_enabled', $1, $2)", values: ["true", false] },
+      { sql: "SELECT set_config('app.role_override', $1, $2)", values: ["admin", false] }
+    ]);
+  });
+
+  it("can scope the SQL session context to the current transaction when requested", async () => {
+    const queries: { sql: string; values?: unknown[] }[] = [];
+    await applyAgentSessionSqlContext(
+      {
+        async query<Row>(sql: string, values?: unknown[]) {
+          queries.push({ sql, values });
+          return { rows: [] as Row[] };
+        }
+      },
+      { userId: "55555555-5555-4555-8555-555555555555", actedAsRole: "admin" },
+      { local: true }
+    );
+
+    expect(queries).toEqual([
+      { sql: "SELECT set_config('app.user_id', $1, $2)", values: ["55555555-5555-4555-8555-555555555555", true] },
+      { sql: "SELECT set_config('app.dev_act_as_enabled', $1, $2)", values: ["true", true] },
+      { sql: "SELECT set_config('app.role_override', $1, $2)", values: ["admin", true] }
     ]);
   });
 
