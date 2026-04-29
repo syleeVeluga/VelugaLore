@@ -3,7 +3,7 @@ section: 14
 title: "마일스톤·로드맵 / Milestones & Roadmap"
 parent: VelugaLore PRD
 status: Draft (implementation-ready)
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # 14. 마일스톤·로드맵 / Milestones & Roadmap
@@ -28,11 +28,11 @@ last_updated: 2026-04-28
 
 S-01~S-08은 모두 백엔드/라이브러리 슬라이스로 진행되었고, 슬라이스 카탈로그(§13.3)에 Tauri 셸 스캐폴드를 명시하는 슬라이스가 누락되어 있었다. 이를 별도의 *catch-up* 슬라이스(S-08.5)로 명시했다. 다만 이후 확인 결과 S-06/S-08의 에이전트 출력은 실제 LLM provider 호출이 아니라 계약 검증용 스캐폴딩이므로, M1 사용성 게이트는 S-08.6의 live LLM runtime 보정까지 포함해 검증한다 (§13.7.9 참조).
 
-### 현재 상태 (2026-04-28)
+### 현재 상태 (2026-04-29)
 
-S-08.5는 Windows 개발자용 실행 파일 생성과 desktop package 문서화까지 진전되었다. 다만 M0/M1에서 이연된 실제 게이트는 **사람이 빈 workspace를 열고 실제 LLM 이 생성한 `/draft` patch를 승인해 디스크의 `.md`까지 확인하는 smoke** 이므로, 다음 항목이 통과되기 전에는 M2 게이트를 닫지 않는다.
+S-08.5 는 §13.7.3 9단계 사람 손 smoke 가 Tauri 창에서 1회 통과되어 닫혔다 (close-out 상세는 `PRD/18-implementation-handoffs.md` 참조). 남은 M2 게이트 항목 — 실제 LLM provider runtime — 은 S-08.6 에서 닫는다.
 
-- `pnpm --filter @weki/desktop dev` 또는 생성된 developer executable로 빈 workspace 열기.
+- ~~`pnpm --filter @weki/desktop dev` 또는 생성된 developer executable로 빈 workspace 열기.~~ **closed (S-08.5, 2026-04-29).**
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 3종 preflight 통과.
 - Gemini 기본 모델(`gemini-2.5-flash-lite`)의 `/draft` live LLM 호출 → patch preview → approval queue 승인 → 2-phase write → 디스크 반영.
 - 같은 markdown 파일의 외부 편집이 5초 안에 renderer로 반영되는지 확인.
