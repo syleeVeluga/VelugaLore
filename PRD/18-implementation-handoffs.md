@@ -185,3 +185,32 @@ PRD와 실제 구현 간의 동기화를 위해 참조됩니다.
 - **PRD 해석 및 변경 사항:**
   - "사람 손 1회 통과" 는 single-session pass 로 해석했다. tracer 테스트가 데이터 경로를 고정하므로 사람 검증의 초점은 슬래시 메뉴 UX 와 `Cmd/Ctrl+Enter` 승인 단축키 동작이다.
   - `packages/desktop/README.md` 의 약식 5단계 Smoke Flow 는 PRD §13.7.3 9단계 사인오프 표로 교체했다 — 향후 슬라이스에서도 동일 절차로 desktop shell smoke 를 재활용한다.
+
+## Handoff: S-08.6 close-out — live /draft Gemini smoke pass
+
+- **작업 일자:** 2026-04-29
+- **Slice ID 및 PRD 섹션:**
+  - `S-08.6`: Real LLM provider runtime
+  - 참조: `PRD/13-implementation-guide.md` §13.3, §13.7.9, `PRD/14-milestones.md` §14.1
+  - 보조 기록: `PRD/18-implementation-handoffs.md`
+- **변경된 파일:**
+  - `PRD/13-implementation-guide.md` — §13.3 카탈로그의 S-08.6 행 `[ ]` → `[x]`
+  - `PRD/14-milestones.md` — §14.1 "현재 상태" 의 3종 preflight bullet 과 Gemini `/draft` live LLM bullet 을 closed 로 표기, 도입 문단에 S-08.6 close 사실 추가
+  - `packages/desktop/README.md` — "Live LLM Smoke (S-08.6)" 섹션과 5행 사인오프 표 추가, troubleshooting 에 `PROVIDER_KEY_MISSING` 항목 추가
+  - `PRD/18-implementation-handoffs.md` — 본 close-out 항목 추가
+- **검증 요약:**
+  - 자동화: PR #22 (`S-08.6 wire real LLM runtime`, 커밋 `15418f3`) 에서 `agent-server` 의 3종 key preflight, `/draft`/`/improve`/`/ask` 의 `agent-runtime-py` 위임, Patch/ReadOnlyAnswer 계약 검증, `WEKI_AGENT_RUNTIME=test` 격리, missing-key actionable 에러가 단위/통합 테스트로 고정되어 있다.
+  - 사람 손: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` 세 키를 PowerShell 세션 환경변수로 set 한 상태에서 `pnpm --filter @weki/desktop dev` 로 데스크톱을 띄우고, PRD §13.7.3 9단계 흐름을 1회 통과시켰다. 6단계 patch preview 본문은 결정적 스캐폴드가 아니라 Gemini 기본 모델(`gemini-2.5-flash-lite`) 이 생성한 한국어 본문이었고, 7단계 승인 후 디스크 `.md` 가 동일 본문으로 저장됐다. 환경은 Windows 11.
+  - 하네스: `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate` 통과.
+- **닫힌 게이트:**
+  - §14.1 "현재 상태" 두 번째 bullet (3종 provider key preflight) — closed.
+  - §14.1 "현재 상태" 세 번째 bullet (Gemini `/draft` live LLM 흐름) — closed.
+  - §13.3 카탈로그 S-08.6 — closed (`[x]`).
+  - §13.7.9 DoD 표의 사람 손 검증 행(`Live `/draft` smoke`) — closed. 자동화 행들은 PR #22 단계에서 이미 닫혀 있었다.
+- **여전히 미증명/미해결된 acceptance:**
+  - 데스크톱 OS keychain UX 는 §11.5.1 정책상 후속 슬라이스로 이연된 채 그대로다 — 본 close-out 은 환경변수 preflight 경로만 닫는다.
+  - `improve`/`ask` 의 사람 손 live smoke 는 본 close-out 에서 별도로 추가하지 않았다 — 데이터 경로는 PR #22 의 `agent-runtime-py` 워커 테스트와 `agent-server` 통합 테스트로 검증되어 있고, slice DoD 도 `/draft` 1회를 가시 게이트로 명시하기 때문.
+  - `ingest`/`curate` 의 정상 runtime 가시 검증은 각 후속 슬라이스(S-09a/S-09b) 에서 동일 runtime 경로를 재사용해 닫는다.
+- **PRD 해석 및 변경 사항:**
+  - "live `/draft` smoke" 는 사용자 입력 → Gemini 기본 모델 생성 본문 → approval → 2-phase write → 디스크 `.md` 까지 single-session pass 로 해석했다.
+  - 키 입력 방식은 PRD §11.5.1 의 OS keychain canonical 정책을 보존한 채, 본 슬라이스에서는 PowerShell 세션 환경변수로만 닫았다. `.env` 디스크 저장 경로는 추가하지 않았다 — 평문 디스크 저장은 §11.5 의 보안 정책과 어긋나고, OS keychain UX 는 후속 슬라이스에서 닫는다.
