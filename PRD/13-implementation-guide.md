@@ -3,7 +3,7 @@ section: 13
 title: "구현 가이드 (AI 코딩 에이전트 + 엔지니어용) / Implementation Guide for AI Coding Agents and Engineers"
 parent: VelugaLore PRD
 status: Draft (implementation-ready)
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # 13. 구현 가이드 (AI 코딩 에이전트 + 엔지니어용) / Implementation Guide for AI Coding Agents and Engineers
@@ -41,7 +41,7 @@ last_updated: 2026-04-28
 | **S-06** | [x] DraftAgent (코어 1) | §5.1, §4.4 | `/draft` 으로 빈 문서→개요+초안 또는 선택→확장, evals ≥ 0.8 |
 | **S-07** | [x] Patch preview + Approval queue | §8.4, §11.4 | 옵션 비교 UI, 키보드 적용/거절, audit_log 기록 |
 | **S-08** | [x] ImproveAgent (코어 2) + AskAgent (코어 3) | §5.1 | `/improve` 3옵션 readability 차이 측정, `/ask` 검색→qa 페이지 자동 저장 |
-| **S-08.5** | [ ] Desktop shell catch-up: 첫 실행 가능한 데스크톱 빌드 | §4.1, §7.1, §9.1, §11.1 | Tauri 2 셸 + React 렌더러 스캐폴드, 빈 workspace 열기 + `/draft` 한 번으로 .md 생성 (`packages/editor` 임베드 + S-07 승인 큐 + S-03 2-phase write 통과). 자세한 명세는 §13.7 |
+| **S-08.5** | [x] Desktop shell catch-up: 첫 실행 가능한 데스크톱 빌드 | §4.1, §7.1, §9.1, §11.1 | Tauri 2 셸 + React 렌더러 스캐폴드, 빈 workspace 열기 + `/draft` 한 번으로 .md 생성 (`packages/editor` 임베드 + S-07 승인 큐 + S-03 2-phase write 통과). 자세한 명세는 §13.7 |
 | **S-08.6** | [ ] Real LLM provider runtime | §4.4, §5.1, §11.5, §12, §13.7.9 | 정상 runtime 은 `OPENAI_API_KEY` · `ANTHROPIC_API_KEY` · `GOOGLE_API_KEY` 3종 preflight 필수. `agent-server` 는 TS 결정적 스캐폴딩 대신 `agent-runtime-py` pydantic-ai 워커를 호출하고, `/draft` live LLM patch 가 approval queue + 2-phase write smoke 를 통과 |
 | **S-09a** | IngestAgent (코어 4) + import 시스템 작업 | §5.1, §2.2 U1·U2, §8.2 `import_runs` | PDF/URL/이미지 ingest 한 raw → 3~10 노드, docx/Notion/Confluence import (트리/링크 보존 ≥ 0.9) |
 | **S-09b** | **CurateAgent (코어 5) + IA 변경 op + 수동 페이지/폴더 관리** | §5.1, §3.5, §7.1.2, §8.4.1 | `/curate scope:wiki/policies` 가 split/merge/move/adopt_orphan 제안, approval 후 적용. 사용자는 파일트리에서 페이지/폴더 생성·이름변경·이동·복제·보관·복원을 직접 수행. 한 run 통째로 revert, doc_versions 보존, 백링크 자동 재배치 100% |

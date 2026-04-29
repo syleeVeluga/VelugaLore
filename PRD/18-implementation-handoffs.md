@@ -3,7 +3,7 @@ section: 18
 title: "구현 핸드오프 / Implementation Handoffs"
 parent: VelugaLore PRD
 status: Living log
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # Implementation Handoffs
@@ -159,3 +159,29 @@ PRD와 실제 구현 간의 동기화를 위해 참조됩니다.
 - **PRD 해석 및 변경 사항:**
   - S-09a 는 import UI 자체가 아니라 DB/runtime system operation loop 를 먼저 닫는 범위로 해석했다.
   - `import_runs.options.conflict_strategy` 는 현재 안전한 `skip`/`fail` 만 지원한다. 기존 문서 overwrite 는 rollback semantics 가 더 커져 후속 slice 로 남긴다.
+
+## Handoff: S-08.5 close-out — §13.7.3 manual /draft smoke pass
+
+- **작업 일자:** 2026-04-29
+- **Slice ID 및 PRD 섹션:**
+  - `S-08.5`: Desktop shell catch-up — 첫 실행 가능한 데스크톱 빌드
+  - 참조: `PRD/13-implementation-guide.md` §13.3, §13.7, `PRD/14-milestones.md` §14.1
+  - 보조 기록: `PRD/18-implementation-handoffs.md`
+- **변경된 파일:**
+  - `packages/desktop/README.md` — Smoke Flow 섹션을 PRD §13.7.3 9단계 사인오프 표(행동/기대/체크박스)로 교체
+  - `PRD/13-implementation-guide.md` — §13.3 카탈로그의 S-08.5 행 `[ ]` → `[x]`
+  - `PRD/14-milestones.md` — §14.1 "현재 상태" 헤더 날짜 `2026-04-28` → `2026-04-29`, workspace-open bullet 을 closed 로 표기, 남은 LLM runtime 항목은 S-08.6 게이트로 명시
+  - `PRD/18-implementation-handoffs.md` — 본 close-out 항목 추가
+- **검증 요약:**
+  - 자동화: `packages/desktop/src/desktop-session.test.ts` 의 9단계 tracer 테스트(`walks the PRD §13.7.3 nine-step /draft tracer in a single session`, 커밋 `ba5fcf3`) 가 `agent-server` subprocess + `/draft` 호출 + approval queue + 2-phase write + 외부 편집 watcher 전파를 단일 세션으로 검증한다. 데이터 경로는 이 테스트로 고정되어 있다.
+  - 사람 손: PRD §13.7.3 9단계가 Tauri 창에서 1회 통과되었다. 환경은 Windows 11. 본 슬라이스는 desktop shell gate 이므로 agent runtime 은 deterministic scaffolding 경로를 사용한다 — 실제 LLM provider preflight 와 Gemini `/draft` 호출 검증은 S-08.6 게이트.
+  - 하네스: `powershell -ExecutionPolicy Bypass -File tools/agent-harness.ps1 -Command validate` 통과.
+- **닫힌 게이트:**
+  - §14.1 "현재 상태" 첫 번째 bullet (`pnpm --filter @weki/desktop dev` 로 빈 workspace 열기 + 9단계 흐름) — closed.
+  - §13.7.6 DoD 표의 사람 손 검증 행(`/draft` 9단계 흐름) — closed. 자동화 행들은 tracer 로 이미 닫혀 있었다.
+  - §13.3 카탈로그 S-08.5 — closed (`[x]`).
+- **여전히 미증명/미해결된 acceptance:**
+  - S-08.5 자체 acceptance 는 닫혔다. M2 게이트의 나머지(`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`GOOGLE_API_KEY` 3종 preflight + Gemini live LLM `/draft` smoke) 는 S-08.6 에서 닫는다.
+- **PRD 해석 및 변경 사항:**
+  - "사람 손 1회 통과" 는 single-session pass 로 해석했다. tracer 테스트가 데이터 경로를 고정하므로 사람 검증의 초점은 슬래시 메뉴 UX 와 `Cmd/Ctrl+Enter` 승인 단축키 동작이다.
+  - `packages/desktop/README.md` 의 약식 5단계 Smoke Flow 는 PRD §13.7.3 9단계 사인오프 표로 교체했다 — 향후 슬라이스에서도 동일 절차로 desktop shell smoke 를 재활용한다.
