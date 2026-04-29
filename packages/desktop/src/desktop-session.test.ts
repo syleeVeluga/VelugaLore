@@ -107,6 +107,94 @@ describe("S-08.5 desktop workspace session", () => {
     30_000
   );
 
+  it(
+    "walks the PRD §13.7.3 nine-step /draft tracer in a single session",
+    async () => {
+      tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
+      session = new DesktopWorkspaceSession({
+        watcherDebounceMs: 25,
+        env: testRuntimeEnv(),
+        ...agentServerSubprocessOptions()
+      });
+
+      const events: DesktopEvent[] = [];
+      const unsubscribe = session.onEvent((event) => {
+        events.push(event);
+      });
+
+      // Steps 1-2: the renderer asks the shell to open an empty workspace; .weki/ is provisioned and agent-server is up.
+      const opened = await session.openWorkspace(tempRoot);
+      expect(existsSync(path.join(tempRoot, ".weki"))).toBe(true);
+      expect(opened.agentServerPort).toBeGreaterThan(0);
+      await expect(fetch(`http://127.0.0.1:${opened.agentServerPort}/health`).then((r) => r.json())).resolves.toEqual({
+        status: "ok"
+      });
+
+      // Step 3: empty file tree, then "New Note" creates Untitled.md at rev=1.
+      await expect(session.listDocuments()).resolves.toEqual([]);
+      const created = await session.createDoc({ path: "Untitled.md" });
+      expect(created).toMatchObject({ path: "Untitled.md", rev: 1, body: "", lastEditor: "human" });
+
+      // Step 4: opening Untitled.md returns the same body and matching sha.
+      const opening = await session.readDoc(created.id);
+      expect(opening).toMatchObject({ body: "", rev: 1, bodySha256: sha256Hex("") });
+
+      // Step 5: a `/` typed in the editor resolves to /draft via the slash menu and the prompt is dispatched.
+      session = session as DesktopWorkspaceSession;
+      const run = await session.runDraft({
+        docId: created.id,
+        prompt: "/draft 근태 관리 규정 초안 작성 --audience editors"
+      });
+      expect(run.status).toBe("succeeded");
+      expect(events.some((event) => event.type === "agent_run_progress")).toBe(true);
+      expect(events.some((event) => event.type === "agent_run_completed" && event.payload.run_id === run.id)).toBe(true);
+
+      // Step 6: the right-pane approval queue shows a proposed patch tied to this run.
+      const pending = await session.listPendingApprovals();
+      expect(pending).toHaveLength(1);
+      expect(pending[0]).toMatchObject({ agentRunId: run.id, status: "proposed" });
+
+      // Step 7: approve -> 2-phase write commits the patch with matching body_sha256 on disk.
+      const applied = await session.applyPatch(run.id, "approve");
+      expect(applied.status).toBe("applied");
+      if (applied.status !== "applied") {
+        unsubscribe();
+        return;
+      }
+      const diskBody = await readFile(path.join(tempRoot, "Untitled.md"), "utf8");
+      expect(applied.document.body).toBe(diskBody);
+      expect(applied.document.bodySha256).toBe(sha256Hex(diskBody));
+
+      // Step 8: the editor sees rev=2, the path is stable, and the doc_changed agent event was emitted.
+      await expect(session.readDoc(created.id)).resolves.toMatchObject({ rev: 2, bodySha256: sha256Hex(diskBody) });
+      expect(applied.document.path).toBe(created.path);
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "doc_changed",
+          payload: expect.objectContaining({ doc_id: created.id, rev: 2, source: "agent" })
+        })
+      );
+
+      // Step 9: an external editor saves the file -> watcher emits doc_changed within the 5s window.
+      const externalSync = waitForEvent(session, (event) => event.type === "doc_changed" && event.payload.source === "sync");
+      const externalBody = `${diskBody}\nexternal edit\n`;
+      await writeFile(path.join(tempRoot, "Untitled.md"), externalBody, "utf8");
+      const syncEvent = await externalSync;
+      expect(syncEvent).toMatchObject({
+        type: "doc_changed",
+        payload: { doc_id: created.id, rev: 3, source: "sync" }
+      });
+      await expect(session.readDoc(created.id)).resolves.toMatchObject({
+        body: externalBody,
+        rev: 3,
+        bodySha256: sha256Hex(externalBody)
+      });
+
+      unsubscribe();
+    },
+    30_000
+  );
+
   it("emits doc_changed for an external edit within the watcher window", async () => {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "weki-desktop-"));
     session = new DesktopWorkspaceSession({ watcherDebounceMs: 25, startAgentServer: false });
