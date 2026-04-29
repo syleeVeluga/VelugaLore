@@ -37,7 +37,17 @@ export function createTauriDesktopApi(): DesktopApi {
     if (!workspace) {
       return [];
     }
-    return invoke("list_pending_approvals");
+    const url = new URL(`http://127.0.0.1:${workspace.agentServerPort}/patches`);
+    url.searchParams.set("status", "proposed");
+    url.searchParams.set("workspaceId", workspace.workspaceId);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: agentServerHeaders(devActAsRole)
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return ((await response.json()) as { patches: PendingApproval[] }).patches;
   };
 
   return {
@@ -51,6 +61,7 @@ export function createTauriDesktopApi(): DesktopApi {
     async openWorkspace(path: string) {
       const opened = normalizeOpenWorkspaceResponse(await invoke("open_workspace", { path }));
       workspace = opened;
+      devActAsRole = opened.actedAsRole;
       return opened;
     },
     listDocuments() {
@@ -123,7 +134,9 @@ export function createTauriDesktopApi(): DesktopApi {
         return invoke("apply_patch", { runId, decision });
       }
 
-      const runResponse = await fetch(`http://127.0.0.1:${workspace.agentServerPort}/runs/${runId}`);
+      const runResponse = await fetch(`http://127.0.0.1:${workspace.agentServerPort}/runs/${runId}`, {
+        headers: agentServerHeaders(devActAsRole)
+      });
       if (!runResponse.ok) {
         throw new Error(await runResponse.text());
       }
@@ -197,6 +210,6 @@ function agentServerHeaders(devActAsRole?: DevActAsRole): HeadersInit {
   const devActAsHeaderName = ["x-weki", "dev", "as", "role"].join("-");
   return {
     "content-type": "application/json",
-    ...(import.meta.env.DEV && devActAsRole ? { [devActAsHeaderName]: devActAsRole } : {})
+    ...(import.meta.env.DEV ? { [devActAsHeaderName]: devActAsRole ?? "" } : {})
   };
 }

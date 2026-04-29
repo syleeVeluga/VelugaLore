@@ -61,8 +61,16 @@ struct OpenWorkspaceResponse {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct LocalUserIdentity {
+    version: u8,
+    user_id: String,
+    display_name: String,
+    provisioned_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyLocalUserIdentity {
     version: u8,
     user_id: String,
     display_name: String,
@@ -710,6 +718,16 @@ fn ensure_local_user_identity(root: &Path) -> Result<LocalUserIdentity, String> 
             if let Ok(identity) = serde_json::from_str::<LocalUserIdentity>(&body) {
                 if identity.version == 1 && !identity.user_id.is_empty() {
                     return Ok(identity);
+                }
+            }
+            if let Ok(identity) = serde_json::from_str::<LegacyLocalUserIdentity>(&body) {
+                if identity.version == 1 && !identity.user_id.is_empty() {
+                    return Ok(LocalUserIdentity {
+                        version: identity.version,
+                        user_id: identity.user_id,
+                        display_name: identity.display_name,
+                        provisioned_at: identity.provisioned_at,
+                    });
                 }
             }
         }

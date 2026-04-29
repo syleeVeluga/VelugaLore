@@ -178,6 +178,21 @@ describe.skipIf(!runIntegration)("S-02 Postgres RLS integration", () => {
     await query(client, "ROLLBACK");
   });
 
+  it("returns zero domain rows when app.user_id is unset", async () => {
+    await query(client, "BEGIN");
+    await query(client, "SET LOCAL ROLE weki_app_tester");
+    await query(client, "SET LOCAL row_security = on");
+
+    const documents = await query(client, "SELECT id FROM documents");
+    const workspaces = await query(client, "SELECT id FROM workspaces");
+    const patches = await query(client, "SELECT id FROM patches");
+
+    expect(documents.rowCount).toBe(0);
+    expect(workspaces.rowCount).toBe(0);
+    expect(patches.rowCount).toBe(0);
+    await query(client, "ROLLBACK");
+  });
+
   it("rejects raw_sources updates for every role", async () => {
     await query(client, "BEGIN");
     await setActorContext(client, ids.owner);
